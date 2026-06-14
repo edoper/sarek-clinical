@@ -122,16 +122,27 @@ clinical report you want **one** list of variants, where each variant is tagged 
 much the callers agreed*. That is what `consensus.sh` does.
 
 ### What it does, in plain words
-- It uses the **DeepVariant** file as the **trustworthy base** ("backbone"). Every variant
-  DeepVariant called is kept, **with its genotype details** — zygosity (`GT`), depth (`DP`),
-  allelic depths (`AD`), quality (`GQ`), allele fraction (`VAF`). *(Sarek's own built-in
-  consensus throws these details away — that's why we use our own script.)*
-- It then **checks the other three callers** and adds three tags to every variant:
-  - `NCALLERS` — how many of the four callers found it (1–4)
-  - `CALLERS`  — their names, e.g. `deepvariant,strelka`
-  - `CONF`     — a confidence label from agreement: **HIGH** (≥3 callers), **MEDIUM** (2), **LOW** (1)
-- It **does not delete anything.** You decide how strict to be *afterwards* (see below).
-  This keeps the decision visible and auditable — important for clinical work.
+It builds a **union** list with two parts:
+
+1. **Backbone — every DeepVariant call**, kept with DeepVariant's genotype details:
+   zygosity (`GT`), quality (`GQ`), depth (`DP`), allelic depths (`AD`), allele fraction
+   (`VAF`). *(Sarek's own built-in consensus throws these details away — that's why we use
+   our own script.)*
+2. **Rescue — variants DeepVariant missed but ≥2 of the other callers agreed on.** These are
+   added back so we don't lose real variants. Since DeepVariant has no genotype for them, the
+   genotype is **borrowed from Strelka2**, or from **HaplotypeCaller** if Strelka2 didn't call
+   it (FreeBayes counts toward agreement but is never used as the genotype source). Rescued
+   variants carry `GT/GQ/DP/AD` (no `VAF` — those callers don't report it; `AD` lets you
+   compute allele fraction).
+
+Every variant gets four tags:
+- `NCALLERS` — how many of the four callers found it (1–4)
+- `CALLERS`  — their names, e.g. `deepvariant,strelka`
+- `CONF`     — confidence from agreement: **HIGH** (≥3 callers), **MEDIUM** (2), **LOW** (1)
+- `GT_SOURCE` — which caller the genotype came from (`deepvariant`, `strelka`, or `haplotypecaller`)
+
+Nothing concordant is silently lost, and **nothing is tiered away here** — you decide how
+strict to be *afterwards* (see below). This keeps the decision visible and auditable.
 
 > Before comparing, the script lines up the callers fairly: keeps only `PASS` variants,
 > splits "two-variants-in-one-line" records apart, and shifts insertions/deletions to a
@@ -164,23 +175,28 @@ You can run this **on your laptop** — it only reads the small variant files, n
 sequencing data, so it does not need the cloud.
 
 ### What you get
-- `SAMPLE.consensus.vcf.gz` (+ `.tbi`) — the DeepVariant variants, genotypes intact, each
-  tagged with `CALLERS` / `NCALLERS` / `CONF`.
+- `SAMPLE.consensus.vcf.gz` (+ `.tbi`) — all DeepVariant calls **plus** the rescued ≥2-caller
+  variants, genotypes intact, each tagged with `CALLERS` / `NCALLERS` / `CONF` / `GT_SOURCE`.
 - `SAMPLE.consensus.log` — a record of exactly what was run (for clinical provenance).
 
 ### Choosing how strict to be (the actual filter)
-Because the file is the DeepVariant backbone, **every variant in it is a DeepVariant call**,
-so the file already *is* the "≥2 callers **OR** DeepVariant" set (Section 4) — most sensitive,
-nothing thrown away. To tighten it later, filter on the tags:
+The file is exactly the **"≥2 callers OR DeepVariant"** set from Section 4 — most sensitive,
+nothing real thrown away. To tighten it later, filter on the tags:
 ```bash
-# Sensitive (default): use the file as-is — keeps DeepVariant-only calls too.
+# Sensitive (default): use the file as-is.
 
-# Stricter — keep only variants 2+ callers agreed on (highest specificity):
+# Stricter — keep only variants 2+ callers agreed on (drops DeepVariant-only calls):
 bcftools view -i 'NCALLERS>=2' SAMPLE.consensus.vcf.gz -Oz -o SAMPLE.concordant.vcf.gz
 
-# Or just look at the highest-confidence tier:
+# Highest-confidence tier only:
 bcftools view -i 'CONF="HIGH"' SAMPLE.consensus.vcf.gz
+
+# See where each genotype came from:
+bcftools query -f '%CHROM\t%POS\t%INFO/GT_SOURCE\t%INFO/CALLERS\n' SAMPLE.consensus.vcf.gz
 ```
+
+> **Mixed genotype sources:** rescued variants carry a Strelka2/HaplotypeCaller genotype (and
+> no `VAF`). Use `GT_SOURCE` if your downstream filter treats DeepVariant genotypes differently.
 This is where the project's downstream **candidate-filtering** step takes over.
 
 > **Clinical note:** `CONF` measures *agreement between callers*, not absolute correctness.
@@ -215,6 +231,7 @@ This is where the project's downstream **candidate-filtering** step takes over.
 | consensus | combining the four callers' results into one tagged list |
 | `NCALLERS` / `CALLERS` | how many callers (and which) found a given variant |
 | `CONF` | confidence from agreement: HIGH (≥3 callers) / MEDIUM (2) / LOW (1) |
+| `GT_SOURCE` | which caller the genotype came from (`deepvariant` / `strelka` / `haplotypecaller`) |
 | genotype (`GT`,`DP`,`AD`,`GQ`,`VAF`) | per-variant details: zygosity, depth, allele depths, quality, allele fraction |
 
 ---
@@ -225,4 +242,4 @@ This is where the project's downstream **candidate-filtering** step takes over.
 - `gcb-smoke.config` — cloud settings for the tiny test run (no `params`, lets the `test` profile drive)
 - `env.sh` — loads Java + Nextflow into your terminal (and sets `NXF_SYNTAX_PARSER=v1`, required for sarek 3.8.1 on Nextflow 26.x)
 - `samplesheet.example.csv` — template for listing your input files
-- `consensus.sh` — combines the four callers into one DeepVariant-backbone list tagged with `CALLERS`/`NCALLERS`/`CONF` (Section 5)
+- `consensus.sh` — union consensus: all DeepVariant calls + variants ≥2 other callers agree on (genotype borrowed from Strelka2/HaplotypeCaller), tagged with `CALLERS`/`NCALLERS`/`CONF`/`GT_SOURCE` (Section 5)
