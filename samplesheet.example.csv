@@ -1,0 +1,4 @@
+patient,sample,lane,fastq_1,fastq_2
+PATIENT001,PATIENT001,L001,gs://intergenica-sarek-clinical/fastq/PATIENT001_L001_R1.fastq.gz,gs://intergenica-sarek-clinical/fastq/PATIENT001_L001_R2.fastq.gz
+PATIENT001,PATIENT001,L002,gs://intergenica-sarek-clinical/fastq/PATIENT001_L002_R1.fastq.gz,gs://intergenica-sarek-clinical/fastq/PATIENT001_L002_R2.fastq.gz
+PATIENT002,PATIENT002,L001,gs://intergenica-sarek-clinical/fastq/PATIENT002_L001_R1.fastq.gz,gs://intergenica-sarek-clinical/fastq/PATIENT002_L001_R2.fastq.gz

@@ -1,0 +1,9 @@
+# Nextflow runtime junk — never commit these
+.nextflow/
+.nextflow.log*
+work/
+results/
+*.html        # timeline/report/trace/dag outputs
+trace.txt*
+# your real samplesheet may reference patient IDs — keep only the example in git
+samplesheet.csv
