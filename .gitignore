@@ -1,13 +1,34 @@
-# Nextflow runtime junk — never commit these
-.nextflow/
-.nextflow.log*
-work/
-results/
-*.html        # timeline/report/trace/dag outputs
-trace.txt*
-# your real samplesheet may reference patient IDs — keep only the example in git
-samplesheet.csv
-# run logs and Nextflow's stray 'null' publishDir artifact
-smoke.log
-*.log
-null/
+# ─────────────────────────────────────────────────────────────────────────
+# ALLOW-LIST .gitignore — ignore everything, then un-ignore only code/config.
+# This pipeline touches patient data (CRAM paths, sample/family IDs, VCFs).
+# Ignoring by default makes it impossible to commit PHI by accident. Keep private.
+# To track a new code/config file, add an explicit "!<file>" below.
+# ─────────────────────────────────────────────────────────────────────────
+
+# Ignore everything by default
+*
+
+# Shared core
+!.gitignore
+!README.md
+!BGE.md
+!LICENSE
+!consensus.sh
+!env.sh
+
+# WGS-from-FASTQ entry point
+!gcb.config
+!gcb-smoke.config
+!samplesheet.example.csv
+
+# BGE-exome-from-CRAM entry point
+!gcb-bge-wes.config
+!make_samplesheet.sh
+!run_bge_wes.sh
+!consensus_from_results.sh
+!families.example.tsv
+
+# Explicitly NEVER tracked (covered by "*", here as documentation):
+#   samplesheet.csv  families.tsv             <- real inputs (patient IDs / gs:// CRAM paths)
+#   consensus/  *.vcf  *.vcf.gz  *.tbi         <- patient variants
+#   work/  results/  .nextflow*  *.html  *.log  null/   <- run artifacts

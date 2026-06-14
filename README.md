@@ -1,11 +1,14 @@
 # Sarek Clinical Pipeline — Plain-Language Guide
 
-A pipeline that takes raw DNA sequencing files (**FASTQ**) from a whole genome and
-finds the genetic variants in them, using **four independent variant callers** and
-keeping a variant when **at least two of them agree** (with DeepVariant given priority).
-The heavy computing runs on **Google Cloud**, not on your laptop.
+Clinical germline variant calling on **Google Cloud** using **four independent variant callers**,
+keeping a variant when **at least two agree** (DeepVariant given priority), then handing a single
+consensus VCF to the `candidate-filtering` repo. The heavy computing runs in the cloud, not on your laptop.
 
-> This guide assumes almost no cloud experience. Read it top to bottom once.
+> **Two entry points** (same callers, same `consensus.sh`, same Google Cloud setup):
+> - **WGS from FASTQ** — this guide, below.
+> - **BGE exome from CRAM** (Terra Blended Genome-Exome, exome arm) — see **[BGE.md](BGE.md)**.
+
+This guide (the WGS path) assumes almost no cloud experience. Read it top to bottom once.
 
 ---
 
@@ -237,9 +240,20 @@ This is where the project's downstream **candidate-filtering** step takes over.
 ---
 
 ## Files in this repo
-- `README.md` — this guide
-- `gcb.config` — the cloud settings for real runs (project, bucket, Spot, 4 callers)
-- `gcb-smoke.config` — cloud settings for the tiny test run (no `params`, lets the `test` profile drive)
-- `env.sh` — loads Java + Nextflow into your terminal (and sets `NXF_SYNTAX_PARSER=v1`, required for sarek 3.8.1 on Nextflow 26.x)
-- `samplesheet.example.csv` — template for listing your input files
+
+**Shared core**
 - `consensus.sh` — union consensus: all DeepVariant calls + variants ≥2 other callers agree on (genotype borrowed from Strelka2/HaplotypeCaller), tagged with `CALLERS`/`NCALLERS`/`CONF`/`GT_SOURCE` (Section 5)
+- `env.sh` — loads Java + Nextflow into your terminal (and sets `NXF_SYNTAX_PARSER=v1`, required for sarek 3.8.1 on Nextflow 26.x)
+
+**WGS from FASTQ** (this guide)
+- `README.md` — this guide
+- `gcb.config` — cloud settings for real runs (project, bucket, Spot, 4 callers)
+- `gcb-smoke.config` — cloud settings for the tiny test run (no `params`, lets the `test` profile drive)
+- `samplesheet.example.csv` — template for listing your input FASTQs
+
+**BGE exome from CRAM** (see [BGE.md](BGE.md))
+- `gcb-bge-wes.config` — Google Batch profile: Sarek `--step variant_calling --wes` from CRAM
+- `make_samplesheet.sh` — family table → Sarek samplesheet (`<family>-<role>` naming)
+- `run_bge_wes.sh` — launch the BGE exome calling on Batch
+- `consensus_from_results.sh` — pull per-caller VCFs and run `consensus.sh` per sample
+- `families.example.tsv` — template family/CRAM table

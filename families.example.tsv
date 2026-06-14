@@ -1,0 +1,10 @@
+# Family / CRAM table — one row per individual. Tab-separated. '#' and blanks ignored.
+# Columns: family <tab> role(P/M/F) <tab> sex(XX/XY/NA) <tab> cram_uri <tab> [crai_uri]
+# sample name becomes <family>-<role> (e.g. FAM01-P) for candidate-filtering auto-discovery.
+#
+# family	role	sex	cram_uri	crai_uri(optional)
+FAM01	P	XY	gs://fc-YOUR-WORKSPACE-BUCKET/path/FAM01_proband.cram
+FAM01	M	XX	gs://fc-YOUR-WORKSPACE-BUCKET/path/FAM01_mother.cram
+FAM01	F	XY	gs://fc-YOUR-WORKSPACE-BUCKET/path/FAM01_father.cram
+FAM02	P	XX	gs://fc-YOUR-WORKSPACE-BUCKET/path/FAM02_proband.cram
+FAM02	M	XX	gs://fc-YOUR-WORKSPACE-BUCKET/path/FAM02_mother.cram
