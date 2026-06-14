@@ -7,3 +7,7 @@ results/
 trace.txt*
 # your real samplesheet may reference patient IDs — keep only the example in git
 samplesheet.csv
+# run logs and Nextflow's stray 'null' publishDir artifact
+smoke.log
+*.log
+null/

@@ -110,12 +110,86 @@ No single variant caller is perfect. We run four and combine them:
 
 **Rule:** keep a variant if **≥2 callers** find it, **OR** if **DeepVariant** finds it
 (so we don't throw away DeepVariant's high-quality calls). This balances accuracy
-(fewer false positives) with not missing real variants. *(This consensus step is a
-separate script — added next.)*
+(fewer false positives) with not missing real variants. *(The script that applies this
+is `consensus.sh` — see Section 5.)*
 
 ---
 
-## 5. Money & safety
+## 5. Combining the four callers into one list — `consensus.sh`
+
+Sarek gives you **one VCF per caller** (a DeepVariant file, a Strelka file, etc.). For a
+clinical report you want **one** list of variants, where each variant is tagged with *how
+much the callers agreed*. That is what `consensus.sh` does.
+
+### What it does, in plain words
+- It uses the **DeepVariant** file as the **trustworthy base** ("backbone"). Every variant
+  DeepVariant called is kept, **with its genotype details** — zygosity (`GT`), depth (`DP`),
+  allelic depths (`AD`), quality (`GQ`), allele fraction (`VAF`). *(Sarek's own built-in
+  consensus throws these details away — that's why we use our own script.)*
+- It then **checks the other three callers** and adds three tags to every variant:
+  - `NCALLERS` — how many of the four callers found it (1–4)
+  - `CALLERS`  — their names, e.g. `deepvariant,strelka`
+  - `CONF`     — a confidence label from agreement: **HIGH** (≥3 callers), **MEDIUM** (2), **LOW** (1)
+- It **does not delete anything.** You decide how strict to be *afterwards* (see below).
+  This keeps the decision visible and auditable — important for clinical work.
+
+> Before comparing, the script lines up the callers fairly: keeps only `PASS` variants,
+> splits "two-variants-in-one-line" records apart, and shifts insertions/deletions to a
+> standard position (so the same indel written differently by two callers still matches).
+
+### What you need
+- `bcftools`, `bgzip`, `tabix`, `samtools` available (e.g. `conda install -c bioconda bcftools htslib samtools`).
+- The **reference genome FASTA** your data was aligned to, with its `.fai` index next to it
+  (GATK.GRCh38 for this project). If the `.fai` is missing: `samtools faidx your_reference.fasta`.
+- The four per-caller VCFs (`.vcf.gz`) for **one sample**.
+
+### How to run it
+```bash
+source ~/sarek-clinical/env.sh        # puts tools on PATH (if you installed them there)
+
+~/sarek-clinical/consensus.sh \
+  -r /path/to/GATK.GRCh38.fasta \
+  -d  results/variant_calling/deepvariant/SAMPLE/SAMPLE.deepvariant.vcf.gz \
+  -o  results/consensus/SAMPLE \
+  -c strelka=results/variant_calling/strelka/SAMPLE/SAMPLE.strelka.variants.vcf.gz \
+  -c freebayes=results/variant_calling/freebayes/SAMPLE/SAMPLE.freebayes.vcf.gz \
+  -c haplotypecaller=results/variant_calling/haplotypecaller/SAMPLE/SAMPLE.haplotypecaller.vcf.gz
+```
+- `-r` reference FASTA (with `.fai`)   · `-d` the DeepVariant VCF (the backbone)
+- `-o` output prefix   · `-c name=path` for each of the **other** callers (repeat as needed)
+- Run `~/sarek-clinical/consensus.sh -h` for all options (e.g. `-f` to change which FILTER
+  values are kept; default `PASS,.`).
+
+You can run this **on your laptop** — it only reads the small variant files, not the raw
+sequencing data, so it does not need the cloud.
+
+### What you get
+- `SAMPLE.consensus.vcf.gz` (+ `.tbi`) — the DeepVariant variants, genotypes intact, each
+  tagged with `CALLERS` / `NCALLERS` / `CONF`.
+- `SAMPLE.consensus.log` — a record of exactly what was run (for clinical provenance).
+
+### Choosing how strict to be (the actual filter)
+Because the file is the DeepVariant backbone, **every variant in it is a DeepVariant call**,
+so the file already *is* the "≥2 callers **OR** DeepVariant" set (Section 4) — most sensitive,
+nothing thrown away. To tighten it later, filter on the tags:
+```bash
+# Sensitive (default): use the file as-is — keeps DeepVariant-only calls too.
+
+# Stricter — keep only variants 2+ callers agreed on (highest specificity):
+bcftools view -i 'NCALLERS>=2' SAMPLE.consensus.vcf.gz -Oz -o SAMPLE.concordant.vcf.gz
+
+# Or just look at the highest-confidence tier:
+bcftools view -i 'CONF="HIGH"' SAMPLE.consensus.vcf.gz
+```
+This is where the project's downstream **candidate-filtering** step takes over.
+
+> **Clinical note:** `CONF` measures *agreement between callers*, not absolute correctness.
+> A `LOW` (DeepVariant-only) variant is "unconfirmed by the others," **not** "wrong" —
+> DeepVariant alone is still high quality.
+
+---
+
+## 6. Money & safety
 
 - **Cost:** roughly **$50–100 for 4 genomes** (estimate), thanks to Spot computers.
 - **You only pay while jobs run** + a small amount for files sitting in the bucket.
@@ -125,7 +199,7 @@ separate script — added next.)*
 
 ---
 
-## 6. Mini-glossary
+## 7. Mini-glossary
 
 | Term | Plain meaning |
 |---|---|
@@ -138,12 +212,17 @@ separate script — added next.)*
 | Spot VM | a cheap, occasionally-interrupted cloud computer (auto-retried) |
 | `-resume` | "continue where it stopped" — safe to reuse |
 | GIAB | a reference genome with known answers, used to test accuracy |
+| consensus | combining the four callers' results into one tagged list |
+| `NCALLERS` / `CALLERS` | how many callers (and which) found a given variant |
+| `CONF` | confidence from agreement: HIGH (≥3 callers) / MEDIUM (2) / LOW (1) |
+| genotype (`GT`,`DP`,`AD`,`GQ`,`VAF`) | per-variant details: zygosity, depth, allele depths, quality, allele fraction |
 
 ---
 
 ## Files in this repo
 - `README.md` — this guide
-- `gcb.config` — the cloud settings (project, bucket, Spot, 4 callers)
-- `env.sh` — loads Java + Nextflow into your terminal
+- `gcb.config` — the cloud settings for real runs (project, bucket, Spot, 4 callers)
+- `gcb-smoke.config` — cloud settings for the tiny test run (no `params`, lets the `test` profile drive)
+- `env.sh` — loads Java + Nextflow into your terminal (and sets `NXF_SYNTAX_PARSER=v1`, required for sarek 3.8.1 on Nextflow 26.x)
 - `samplesheet.example.csv` — template for listing your input files
-- `consensus.sh` — *(coming next)* builds the ≥2-caller / DeepVariant-priority variant list
+- `consensus.sh` — combines the four callers into one DeepVariant-backbone list tagged with `CALLERS`/`NCALLERS`/`CONF` (Section 5)
