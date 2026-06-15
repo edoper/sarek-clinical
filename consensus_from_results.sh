@@ -27,9 +27,13 @@ mkdir -p "$LOCAL_OUT"
 
 # Find the published VCF for a caller/sample under the Sarek outdir (filenames vary
 # slightly by caller, e.g. strelka.variants / haplotypecaller.filtered).
-find_vcf() {  # <caller> <sample>
-    gcloud storage ls "$OUTDIR/variant_calling/$1/$2/**.vcf.gz" 2>/dev/null \
-      | grep -viE 'g\.vcf\.gz$' | grep -iE "$1" | head -1
+find_vcf() {  # <caller> <sample> — prefer filtered > variants > plain; never genome/gvcf
+    local all f
+    all=$(gcloud storage ls "$OUTDIR/variant_calling/$1/$2/**.vcf.gz" 2>/dev/null | grep -viE '\.(g|genome)\.vcf\.gz$')
+    for pat in 'filtered\.vcf\.gz$' 'variants\.vcf\.gz$' '\.vcf\.gz$'; do
+        f=$(echo "$all" | grep -iE "$pat" | head -1)
+        [ -n "$f" ] && { echo "$f"; return; }
+    done
 }
 
 # Samples = column 2 of the samplesheet (skip header)

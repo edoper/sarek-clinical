@@ -23,9 +23,11 @@
 
 # BGE-exome-from-CRAM entry point
 !gcb-bge-wes.config
+!build_cohort.py
 !make_samplesheet.sh
 !run_bge_wes.sh
 !consensus_from_results.sh
+!bge_progress.sh
 !families.example.tsv
 
 # Explicitly NEVER tracked (covered by "*", here as documentation):

@@ -25,11 +25,46 @@ calling targets, not MANE-restricted, so you can re-explore without re-calling).
 
 | File | Purpose |
 |---|---|
-| `gcb-bge-wes.config` | Google Batch profile: Sarek `--step variant_calling --wes`, 4 callers, GATK.GRCh38, Spot. |
+| `gcb-bge-wes.config` | Google Batch profile: Sarek `--step variant_calling --wes`, 4 callers, GATK.GRCh38, Spot, `maxRetries=4`, **pre-staged reference** (`gs://…/refs/GATK.GRCh38/`). |
+| `build_cohort.py` | Terra sample-table export (`*.tsv`) → `families.tsv` + a CRAM staging list. Role map: proband=no suffix(`-P`), `…M`=madre(`-M`), `…P`=padre(`-F`). |
 | `make_samplesheet.sh` | `families.tsv` → Sarek samplesheet, naming samples `<family>-<role>` for candidate-filtering. |
-| `run_bge_wes.sh` | Launch the calling on Batch. |
+| `run_bge_wes.sh` | Launch the calling on Batch (single sample / small set). |
 | `consensus_from_results.sh` | Pull the small per-caller VCFs, run `consensus.sh`, emit `<sample>.consensus.vcf.gz`. |
-| `families.example.tsv` | Template family/CRAM table. |
+| `bge_progress.sh` | Zero-cost progress bar (reads the local log + lists bucket objects). |
+| `families.example.tsv` | Template family/CRAM table (for the manual `make_samplesheet.sh` path). |
+
+---
+
+## Cohort workflow (validated — Terra sample-table export → N samples)
+
+Recommended for a real batch. Export the Terra `sample` table to a `.tsv` (it carries
+`collaborator_sample_id`, `genome_cram_path`, `genome_crai_path`, `predicted_sex`).
+
+```bash
+source ~/sarek-clinical/env.sh
+# 1) Terra export -> families.tsv (staged paths) + /tmp/cram_srcs.txt (sources to copy)
+python3 build_cohort.py /path/to/terra_samples_export.tsv
+# 2) Stage CRAMs TDR->bucket (parallel, server-side) and build the samplesheet
+gcloud storage cp -I gs://intergenica-sarek-clinical/bge-wes/crams-cohort/ < /tmp/cram_srcs.txt
+./make_samplesheet.sh families.tsv > samplesheet-cohort.csv
+# 3) Launch all samples in ONE run (coding-only Twist 35Mb intervals; ref pre-staged via config)
+nextflow run nf-core/sarek -r 3.8.1 -profile docker -c gcb-bge-wes.config \
+  --step variant_calling --input samplesheet-cohort.csv \
+  --intervals gs://intergenica-sarek-clinical/bge-wes/targets/twist_coding_targets.bed \
+  --outdir   gs://intergenica-sarek-clinical/bge-wes/results-cohort \
+  --tools deepvariant,strelka,freebayes,haplotypecaller --genome GATK.GRCh38 \
+  -work-dir  gs://intergenica-sarek-clinical/bge-wes/work-cohort -ansi-log false -resume
+# 4) Monitor (zero cost):  watch -n 60 ~/sarek-clinical/bge_progress.sh
+# 5) Consensus for all samples, then VEP + candidate-filtering
+SAMPLESHEET=samplesheet-cohort.csv OUTDIR=gs://intergenica-sarek-clinical/bge-wes/results-cohort \
+  ./consensus_from_results.sh
+```
+
+**Intervals — call coding-only (Twist 35 Mb), not the broad 165 Mb BGE region.** BGE is deep
+(~110×) only on the exome targets; the rest of the 165 Mb is low-pass (~3–13×), so direct-calling
+there yields low-confidence noise that even passes the MANE/consequence gate as `lowDP`. The low-pass
+genome is properly used by **imputation (GLIMPSE, arm 2)** — not by widening the calling region.
+**Cost ≈ $0.10/sample** (coding-only, Spot). Raise the `CPUs` quota (us-central1) for faster wall-clock.
 
 ---
 
