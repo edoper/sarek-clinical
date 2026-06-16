@@ -27,7 +27,9 @@
 !make_samplesheet.sh
 !run_bge_wes.sh
 !consensus_from_results.sh
+!run_bge_annotate_filter.sh
 !bge_progress.sh
+!bge_filter_progress.sh
 !families.example.tsv
 
 # Explicitly NEVER tracked (covered by "*", here as documentation):

@@ -29,8 +29,9 @@ calling targets, not MANE-restricted, so you can re-explore without re-calling).
 | `build_cohort.py` | Terra sample-table export (`*.tsv`) → `families.tsv` + a CRAM staging list. Role map: proband=no suffix(`-P`), `…M`=madre(`-M`), `…P`=padre(`-F`). |
 | `make_samplesheet.sh` | `families.tsv` → Sarek samplesheet, naming samples `<family>-<role>` for candidate-filtering. |
 | `run_bge_wes.sh` | Launch the calling on Batch (single sample / small set). |
-| `consensus_from_results.sh` | Pull the small per-caller VCFs, run `consensus.sh`, emit `<sample>.consensus.vcf.gz`. |
-| `bge_progress.sh` | Zero-cost progress bar (reads the local log + lists bucket objects). |
+| `consensus_from_results.sh` | Pull the small per-caller VCFs, run `consensus.sh`, emit `<sample>.consensus.vcf.gz`. Resumable + per-sample tolerant. **Consensus REF = full `Homo_sapiens_assembly38.fasta` (incl. ALT contigs)** — the primary-assembly fasta fails `norm` on ALT-contig calls. |
+| `run_bge_annotate_filter.sh` | Feed all consensus VCFs → VEP (isolated `bge-cohort/` workdir) → `run_filtering.sh` → `<proband>.candidatos` → copy to `$WIN`. |
+| `bge_progress.sh` / `bge_filter_progress.sh` | Zero-cost progress bars (calling/consensus; and VEP/filtering). |
 | `families.example.tsv` | Template family/CRAM table (for the manual `make_samplesheet.sh` path). |
 
 ---
@@ -55,9 +56,11 @@ nextflow run nf-core/sarek -r 3.8.1 -profile docker -c gcb-bge-wes.config \
   --tools deepvariant,strelka,freebayes,haplotypecaller --genome GATK.GRCh38 \
   -work-dir  gs://intergenica-sarek-clinical/bge-wes/work-cohort -ansi-log false -resume
 # 4) Monitor (zero cost):  watch -n 60 ~/sarek-clinical/bge_progress.sh
-# 5) Consensus for all samples, then VEP + candidate-filtering
+# 5) Consensus for all samples (local; uses ~/sarek-clinical/refs/Homo_sapiens_assembly38.fasta)
 SAMPLESHEET=samplesheet-cohort.csv OUTDIR=gs://intergenica-sarek-clinical/bge-wes/results-cohort \
-  ./consensus_from_results.sh
+  LOCAL_OUT=$HOME/sarek-clinical/consensus-cohort ./consensus_from_results.sh
+# 6) VEP + candidate-filtering for all probands -> $WIN/bge-candidatos/  (watch bge_filter_progress.sh)
+./run_bge_annotate_filter.sh
 ```
 
 **Intervals — call coding-only (Twist 35 Mb), not the broad 165 Mb BGE region.** BGE is deep
