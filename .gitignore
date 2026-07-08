@@ -30,6 +30,8 @@
 !run_bge_annotate_filter.sh
 !bge_progress.sh
 !bge_filter_progress.sh
+!bge_cost.sh
+!bge_dashboard.sh
 !families.example.tsv
 
 # Explicitly NEVER tracked (covered by "*", here as documentation):

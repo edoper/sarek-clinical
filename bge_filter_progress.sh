@@ -6,6 +6,6 @@ total=$(ls "$CONS"/*.consensus.vcf.gz 2>/dev/null | wc -l); [ "$total" -gt 0 ] |
 vep=$(ls "$WD"/*.germline.vep.vcf.gz 2>/dev/null | wc -l)
 cand=$(ls "$WD"/*.candidatos 2>/dev/null | wc -l)
 running=$(pgrep -f "vep|run_bge_annotate_filter|run_filtering" >/dev/null && echo yes || echo no)
-pct=$(( total ? vep*100/total : 0 )); fill=$(( pct/5 ))
+pct=$(( total ? vep*100/total : 0 )); [ "$pct" -gt 100 ] && pct=100; fill=$(( pct/5 ))
 bar=$(printf '%*s' "$fill" '' | tr ' ' '#')$(printf '%*s' $((20-fill)) '' | tr ' ' '.')
 printf "VEP [%s] %d/%d (%d%%) | candidatos: %d | active: %s\n" "$bar" "$vep" "$total" "$pct" "$cand" "$running"

@@ -32,6 +32,8 @@ calling targets, not MANE-restricted, so you can re-explore without re-calling).
 | `consensus_from_results.sh` | Pull the small per-caller VCFs, run `consensus.sh`, emit `<sample>.consensus.vcf.gz`. Resumable + per-sample tolerant. **Consensus REF = full `Homo_sapiens_assembly38.fasta` (incl. ALT contigs)** — the primary-assembly fasta fails `norm` on ALT-contig calls. |
 | `run_bge_annotate_filter.sh` | Feed all consensus VCFs → VEP (isolated `bge-cohort/` workdir) → `run_filtering.sh` → `<proband>.candidatos` → copy to `$WIN`. |
 | `bge_progress.sh` / `bge_filter_progress.sh` | Zero-cost progress bars (calling/consensus; and VEP/filtering). |
+| `bge_cost.sh` | Live Spot **cost bar** — accrued spend vs `BUDGET` (default $20) + projected final cost, reconstructed from Batch job records (control-plane only, no compute/egress). |
+| `bge_dashboard.sh` | **One-glance dashboard** — calling progress + VEP/filter progress + cost bar in one view. `watch -n 30 ~/sarek-clinical/bge_dashboard.sh`. |
 | `families.example.tsv` | Template family/CRAM table (for the manual `make_samplesheet.sh` path). |
 
 ---
@@ -55,7 +57,8 @@ nextflow run nf-core/sarek -r 3.8.1 -profile docker -c gcb-bge-wes.config \
   --outdir   gs://intergenica-sarek-clinical/bge-wes/results-cohort \
   --tools deepvariant,strelka,freebayes,haplotypecaller --genome GATK.GRCh38 \
   -work-dir  gs://intergenica-sarek-clinical/bge-wes/work-cohort -ansi-log false -resume
-# 4) Monitor (zero cost):  watch -n 60 ~/sarek-clinical/bge_progress.sh
+# 4) Monitor (zero cost) — progress + live cost/budget bar in one view:
+#      watch -n 30 ~/sarek-clinical/bge_dashboard.sh      # (BUDGET=20 by default; override: BUDGET=30 watch ...)
 # 5) Consensus for all samples (local; uses ~/sarek-clinical/refs/Homo_sapiens_assembly38.fasta)
 SAMPLESHEET=samplesheet-cohort.csv OUTDIR=gs://intergenica-sarek-clinical/bge-wes/results-cohort \
   LOCAL_OUT=$HOME/sarek-clinical/consensus-cohort ./consensus_from_results.sh

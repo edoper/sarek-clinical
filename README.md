@@ -86,6 +86,17 @@ computer. A whole genome takes several hours. **You can close the laptop lid? No
 keep the terminal open (or use `-bg` to run in the background). If it stops, just add
 `-resume` to the same command and it continues where it left off.
 
+**Watch progress *and* live cost** (BGE cohort arm) without paying anything to look —
+the monitors only *list* the bucket/Batch jobs (no compute, no egress):
+```bash
+watch -n 30 ~/sarek-clinical/bge_dashboard.sh          # progress bars + Spot cost/budget bar + projected total
+BUDGET=30 watch -n 30 ~/sarek-clinical/bge_dashboard.sh # set your own budget ceiling for the bar
+```
+The cost bar reconstructs accrued Spot spend from the Batch job records and shows it
+against a budget with a projected final cost — so a run can never quietly run past what
+you expected. (`bge_cost.sh` is the cost bar alone; `bge_progress.sh` /
+`bge_filter_progress.sh` are the calling and VEP/filter progress bars.)
+
 ### Step 5 — get your results
 Results land in `gs://intergenica-sarek-clinical/results/run01/`. Download the variant
 files (VCF) and the quality report (MultiQC) when ready:

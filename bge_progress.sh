@@ -13,7 +13,7 @@ alive=$(pgrep -f "java.*nextflow" >/dev/null && echo "RUNNING" || echo "stopped"
 listing=$(gcloud storage ls "$RESULTS/variant_calling/**" 2>/dev/null | grep -iE '\.vcf\.gz$' | grep -viE '\.(g|genome)\.vcf\.gz$')
 done=$(echo "$listing" | grep -ciE '/(deepvariant|strelka|freebayes|haplotypecaller)/' )
 
-pct=$(( TOTAL ? done*100/TOTAL : 0 )); filled=$(( pct/5 ))
+pct=$(( TOTAL ? done*100/TOTAL : 0 )); [ "$pct" -gt 100 ] && pct=100; filled=$(( pct/5 ))
 bar=$(printf '%*s' "$filled" '' | tr ' ' '#')$(printf '%*s' $((20-filled)) '' | tr ' ' '.')
 last=$(grep -E 'Submitted process|Pipeline completed|ERROR|Staging foreign' "$LOG" 2>/dev/null | tail -1 | sed 's/.*SAREK://; s/ (.*//' | cut -c1-46)
 [ -z "$last" ] && last="(starting / staging)"
