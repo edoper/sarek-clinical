@@ -39,7 +39,10 @@ find_vcf() {  # <caller> <sample> — prefer filtered > variants > plain; never 
 }
 
 # Samples = column 2 of the samplesheet (skip header)
-samples=$(awk -F',' 'NR>1{print $2}' "$SAMPLESHEET" | sort -u)
+# Sample column is auto-detected by header name ("sample"), so both the standard nf-core/sarek
+# samplesheet (patient,sex,status,sample,...) and a simple 2-column list work. Falls back to
+# column 2 if no "sample" header is present (backward compatible).
+samples=$(awk -F',' 'NR==1{for(i=1;i<=NF;i++) if($i=="sample") c=i; if(!c) c=2; next} {print $c}' "$SAMPLESHEET" | sort -u)
 [[ -n "$samples" ]] || { echo "ERROR: no samples in $SAMPLESHEET"; exit 1; }
 FAILED_SAMPLES=()
 

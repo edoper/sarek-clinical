@@ -49,6 +49,7 @@ echo "[filter] running candidate-filtering in $WD ..."
 WORKDIR="$WD" bash "$CF/run_filtering.sh"
 
 # ── Step 3: collect candidatos to Windows ──
-mkdir -p "$WIN/bge-candidatos"
-cp "$WD"/*.candidatos "$WIN/bge-candidatos/" 2>/dev/null
-echo "[done] $(ls "$WD"/*.candidatos 2>/dev/null | wc -l) candidatos -> $WIN/bge-candidatos/"
+OUT_NAME="${OUT_NAME:-bge-candidatos}"          # override for other cohorts (e.g. epigen-candidatos)
+mkdir -p "$WIN/$OUT_NAME"
+cp "$WD"/*.candidatos "$WIN/$OUT_NAME/" 2>/dev/null
+echo "[done] $(ls "$WD"/*.candidatos 2>/dev/null | wc -l) candidatos -> $WIN/$OUT_NAME/"

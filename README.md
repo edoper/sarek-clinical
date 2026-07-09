@@ -229,6 +229,45 @@ This is where the project's downstream **candidate-filtering** step takes over.
 
 ---
 
+## 6b. Running a big cohort reliably — checklist (hard-won)
+
+Do these **before** launching a large parallel run (e.g. 20+ exomes) so it finishes in one go
+without hand-holding:
+
+1. **Raise the region CPU quota first.** Default `us-central1` `CPUS` and `N2D_CPUS` are **200** —
+   far too low for a cohort. A run will still work (jobs queue/retry) but crawls and floods the log
+   with `CODE_GCE_QUOTA_EXCEEDED`. Raise both to **≥1000** (free — a quota is a ceiling, not a charge):
+   *Console → IAM & Admin → Quotas →* filter "CPUs" / "N2D CPUs", region us-central1 → Edit. CPU bumps
+   usually auto-approve in minutes. (`gcloud` has no quota subcommand; use the Console or the Cloud
+   Quotas REST API.)
+2. **Spot vs on-demand.** Default is **Spot** (cheap, preemptible). Long **HaplotypeCaller** jobs can be
+   reclaimed faster than they finish and, if a task is preempted more than `maxRetries` times, the whole
+   run aborts. `gcb.config` now retries up to **5×** and caps concurrency (`queueSize=40`). If a run keeps
+   getting preempted, switch to on-demand: **`SAREK_SPOT=false nextflow run … -c gcb.config …`** (≈3× the
+   VM cost but zero preemption — worth it for the tail of a stuck run).
+3. **Skip fragile QC on big runs.** `vcftools`/`multiqc` QC steps can themselves fail on Spot and abort
+   an otherwise-complete run. Add `--skip_tools baserecalibrator,vcftools,multiqc` (BQSR is unnecessary
+   with a DeepVariant consensus backbone; `bcftools stats` QC still runs). Drop `baserecalibrator` from
+   that list if you want strict GATK-best-practice parity.
+4. **Uploading FASTQ from Windows/WSL (`/mnt/c`):** disable parallel composite uploads or large files
+   corrupt ("Temporary components were not uploaded correctly"):
+   `export CLOUDSDK_STORAGE_PARALLEL_COMPOSITE_UPLOAD_ENABLED=False` before `gcloud storage rsync/cp`.
+5. **If the driver dies, cancel orphan Batch jobs.** A killed Nextflow driver does **not** stop its
+   Batch jobs — they keep running (and billing). Check `gcloud compute instances list --filter="name~^nf-"`
+   and delete stragglers by exact job id before resuming, or they re-saturate the quota.
+6. **Downstream naming for `candidate-filtering`.** Name samples `<FAMILY>-P/-M/-F` for trio/duo analysis.
+   Plainly-named singleton cohorts (e.g. `EPIGEN01..20`) now auto-run as singletons in `filtering_r.pl`
+   (it prints a `NOTE:`), so no `--proband` is needed — but they get `inheritance=NA`.
+
+### Third entry point: **exome from FASTQ** (EPIGEN-style)
+Besides WGS-from-FASTQ (this README) and BGE-exome-from-CRAM (`BGE.md`), the repo now supports **exome
+from FASTQ** — full alignment + calling, exome-scoped. Launcher: `run_epigen_wes.sh`
+(`--step mapping --wes --intervals <kit BED> --skip_tools baserecalibrator`, 4 callers). Provide the
+capture-kit target BED (GRCh38, chr-prefixed; e.g. Agilent SureSelect V6 `S07604514` padded). Then
+`consensus_from_results.sh` → `candidate-filtering`. Cost for 20 small exomes ≈ **$15–30** on Spot.
+
+---
+
 ## 7. Mini-glossary
 
 | Term | Plain meaning |
@@ -266,5 +305,14 @@ This is where the project's downstream **candidate-filtering** step takes over.
 - `gcb-bge-wes.config` — Google Batch profile: Sarek `--step variant_calling --wes` from CRAM
 - `make_samplesheet.sh` — family table → Sarek samplesheet (`<family>-<role>` naming)
 - `run_bge_wes.sh` — launch the BGE exome calling on Batch
-- `consensus_from_results.sh` — pull per-caller VCFs and run `consensus.sh` per sample
+- `consensus_from_results.sh` — pull per-caller VCFs and run `consensus.sh` per sample (sample column auto-detected by header)
+- `run_bge_annotate_filter.sh` — VEP-annotate consensus VCFs + run candidate-filtering (`OUT_NAME` env sets the output folder)
 - `families.example.tsv` — template family/CRAM table
+
+**Exome from FASTQ** (align + call; Section 6b)
+- `run_epigen_wes.sh` — launch exome calling from FASTQ (`--step mapping --wes`, kit BED, on-demand-capable via `SAREK_SPOT`)
+- `upload_epigen_fastq.sh` — resumable FASTQ → bucket upload (parallel-composite disabled for WSL/`/mnt/c` reliability)
+- Monitoring: `bge_cost.sh` (live Spot/on-demand cost vs budget), `bge_dashboard.sh`, `bge_progress.sh` / `bge_filter_progress.sh`
+
+**Reliability defaults** (in `gcb.config`)
+- `queueSize=40` concurrency cap · `maxRetries=5` (survives Spot preemption streaks) · `SAREK_SPOT=false` → on-demand VMs

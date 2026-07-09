@@ -24,7 +24,9 @@ declare -A SPEC=(
   [n2-standard-2]="2 8"
   [n2-highcpu-4]="4 4" [n2-highcpu-8]="8 8" [n2-highcpu-16]="16 16" [n2-highcpu-32]="32 32"
   [n2-highmem-2]="2 16" [n2-highmem-4]="4 32" [n2-highmem-8]="8 64" [n2-highmem-16]="16 128"
-  [n2d-highcpu-2]="2 4"
+  [n2d-highcpu-2]="2 2" [n2d-highcpu-4]="4 4" [n2d-highcpu-8]="8 8" [n2d-highcpu-16]="16 16" [n2d-highcpu-32]="32 32"
+  [n2d-standard-2]="2 8" [n2d-standard-4]="4 16" [n2d-standard-8]="8 32" [n2d-standard-16]="16 64" [n2d-standard-32]="32 128"
+  [n2d-highmem-2]="2 16" [n2d-highmem-4]="4 32" [n2d-highmem-8]="8 64" [n2d-highmem-16]="16 128"
 )
 # family -> SPOT USD "perVCPUhr perGBhr" (us-central1, ~early-2026)
 declare -A RATE=(
