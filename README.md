@@ -256,15 +256,15 @@ without hand-holding:
    Batch jobs — they keep running (and billing). Check `gcloud compute instances list --filter="name~^nf-"`
    and delete stragglers by exact job id before resuming, or they re-saturate the quota.
 6. **Downstream naming for `candidate-filtering`.** Name samples `<FAMILY>-P/-M/-F` for trio/duo analysis.
-   Plainly-named singleton cohorts (e.g. `EPIGEN01..20`) now auto-run as singletons in `filtering_r.pl`
+   Plainly-named singleton cohorts (e.g. `SAMPLE01..NN`) now auto-run as singletons in `filtering_r.pl`
    (it prints a `NOTE:`), so no `--proband` is needed — but they get `inheritance=NA`.
 
-### Third entry point: **exome from FASTQ** (EPIGEN-style)
+### Third entry point: **exome from FASTQ**
 Besides WGS-from-FASTQ (this README) and BGE-exome-from-CRAM (`BGE.md`), the repo now supports **exome
 from FASTQ** — full alignment + calling, exome-scoped. Launcher: `run_epigen_wes.sh`
 (`--step mapping --wes --intervals <kit BED> --skip_tools baserecalibrator`, 4 callers). Provide the
 capture-kit target BED (GRCh38, chr-prefixed; e.g. Agilent SureSelect V6 `S07604514` padded). Then
-`consensus_from_results.sh` → `candidate-filtering`. Cost for 20 small exomes ≈ **$15–30** on Spot.
+`consensus_from_results.sh` → `candidate-filtering`. Cost ≈ **$1–2 per small exome** on Spot.
 
 ---
 

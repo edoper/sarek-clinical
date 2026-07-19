@@ -10,6 +10,7 @@
 
 # Shared core
 !.gitignore
+!CLAUDE.md
 !README.md
 !BGE.md
 !LICENSE
