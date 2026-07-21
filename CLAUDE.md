@@ -166,4 +166,38 @@ Scripts are env-var driven (override without editing): `SAMPLESHEET` `OUTDIR` `I
 - **`--skip_tools vcftools` does not skip `BCFTOOLS_STATS`.** The `VCF_QC_BCFTOOLS_VCFTOOLS` subworkflow
   still runs its bcftools half, which can fail on Spot and (without the `5000x` retry above) abort a
   finished run over a stats file.
+- **A gzip integrity test on a *truncated* slice can never pass, and `zcat | head` fails under
+  `pipefail`.** Two ways a "cheap sanity check" rejects a perfectly good FASTQ: `head -c 1M f.gz |
+  gzip -t` tests an incomplete gzip member (always fails); and `zcat f.gz | head -1` gives `zcat`
+  SIGPIPE (141), which under `set -o pipefail` fails the pipeline. Capture into a variable instead —
+  `first=$(zcat f.gz 2>/dev/null | head -1)` then test `${first:0:1}` — and rely on an exact
+  **byte-size** comparison for integrity. A validator that rejects good data is worse than none: it
+  burns the transfer budget re-fetching files that were already correct.
+- **Any long unattended transfer/stage job needs a single-instance lock.** Two copies writing the
+  same scratch paths interleave their output; the result still passes a byte-size check, so the
+  corruption is *silent*. Guard with `exec 9>/var/lock/<job>.lock; flock -n 9 || exit 0`.
+- **Concurrent Nextflow runs must each have their own working directory.** The session cache lives in
+  `$PWD/.nextflow`, and a bare `-resume` resumes the **most recent** session — which for a second,
+  overlapping run is the *first* run's, whose LOCK its live driver holds. The second run dies
+  instantly with "Unable to acquire lock on session". Give each run its own `cd` (and absolute `-c`
+  config paths), and only pass `-resume` when that run's own cache already exists.
+- **`executor.queueSize` is per-run, not per-project.** Two concurrent runs each configured at 40 ask
+  for 80 concurrent VMs — i.e. 80 external IPs against the `IN_USE_ADDRESSES` ceiling of 69 (above).
+  When overlapping runs, split the budget (e.g. 15 + 45) so the sum stays under the quota.
+- **Google Batch's server-side `--filter="status.state=SUCCEEDED"` is unreliable — count client-side.**
+  The same query returned `0`, then `5`, a minute apart, when the true count was `37`. Anything that
+  *gates* on a job count (a health check, a cost gate, a "is it safe to proceed" test) must list the
+  states and count them locally: `--format="value(status.state)" | grep -c '^SUCCEEDED$'`. A gate
+  built on the server-side filter will fail a perfectly healthy run.
+- **Gate/marker granularity: emit per-item completion markers as each item finishes, not once the
+  whole batch does.** A stage-everything-then-signal design blocks the first sample behind the last
+  one, defeating any "start the cheapest sample first and evaluate" strategy.
+- **"Pipeline completed successfully" can sit next to `failed=N` — and usually that is fine.** Nextflow
+  counts failed *attempts*; a task preempted twice then succeeding shows as 2 failures. But a
+  genuinely lost caller shard would silently yield a merged VCF **missing genomic regions**, which no
+  candidate list would reveal. Verify completeness before trusting clinical output: all contigs
+  present via `bcftools index -s`, and no unexplained multi-Mb holes between consecutive variants.
+  Large gaps are expected **only** at centromeres, acrocentric short arms, and heterochromatin
+  (1q12, 9q12, 16q11.2, Yq12) — anywhere else means lost work.
+
 - **`$WIN`** = `/mnt/c/Users/epere/Documents` — the Windows-side deliverable folder outputs are copied to.

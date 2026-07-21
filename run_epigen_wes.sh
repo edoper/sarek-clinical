@@ -5,7 +5,9 @@
 # variant calling over the exome target. Per-caller VCFs land in the bucket; build the
 # consensus with consensus_from_results.sh afterwards, then candidate-filtering locally.
 #
-# Cost lever notes (cheapest efficient path, ~$25-40 for 20 exomes):
+# Cost lever notes. MEASURED: 20 exomes from FASTQ = $8.14 of Spot compute (834 vCPU-hours,
+# reconstructed from Batch job records). An earlier revision of this header guessed "$25-40" —
+# that was 3-5x too high. Exomes are ~13x cheaper per sample than WGS ($0.41 vs $5.46).
 #   * Spot VMs (gcb.config), exome-scoped (--wes --intervals) -> minimal compute
 #   * --skip_tools baserecalibrator : BQSR adds cost/time and is unnecessary with a
 #     DeepVariant consensus backbone (DeepVariant guidance = no BQSR). Drop this flag

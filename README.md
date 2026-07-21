@@ -221,9 +221,56 @@ This is where the project's downstream **candidate-filtering** step takes over.
 
 ## 6. Money & safety
 
-- **Cost:** roughly **$50–100 for 4 genomes** (estimate), thanks to Spot computers.
+- **Cost: budget ~$5–6 of Spot compute per WGS genome** (align + 4 callers) — so ~**$25** for
+  4 genomes, ~**$45–50** for 8. Both figures are **measured**, not estimated, reconstructed from
+  Google Batch job records with `bge_cost.sh` (which prices any run from the control plane at no
+  charge):
+
+  | run type | samples | vCPU-hours | total | **per sample** |
+  |---|---|---|---|---|
+  | WGS from FASTQ, single | 1 | 518 | $5.67 | **$5.67** |
+  | WGS from FASTQ, cohort | 8 | 4,194 | ~$45 | **~$5.46** |
+  | Exome from FASTQ | 20 | 834 | $8.14 | **$0.41** |
+  | Exome from CRAM (BGE, calling only) | 63 | 1,009 | $13.68 | **$0.22** |
+  | Mixed exome/BGE cohort | 56 | 577 | $6.90 | **$0.12** |
+
+  Read that last column: **an exome costs ~13x less than a genome, and starting from an aligned
+  CRAM instead of FASTQ roughly halves what remains.** Choose the entry point before optimising
+  anything else.
+
+- **Budget per GENOME, not per gigabase — this is the easy mistake.** The 8-genome cohort used
+  **8.03× the vCPU-hours of the single genome**, matching the *sample count* (8×) almost exactly,
+  **not** the FASTQ volume (5.8×). Reason: the four callers each traverse the whole 3.1 Gb genome
+  once per sample no matter how deep the reads are, so **calling is a fixed cost per genome** and
+  only alignment scales with data volume. Estimating a cohort by scaling total FASTQ size
+  under-budgets it by ~40%.
+- **Spot preemption rework costs ~10–15%.** In the 8-genome cohort, 176 tasks were reclaimed mid-run
+  and redone: 495 of 4,160 vCPU-hours, **$5.42 (13%)**, thrown away. That is the price of Spot being
+  ~5× cheaper than on-demand, and it is a good trade — but include it when budgeting, and expect the
+  share to rise with cohort size, since more concurrent VMs means more exposure to reclaims.
+- *(Historical note: revisions of this file before 2026-07 estimated **$50–100 per 4 genomes**, then
+  briefly claimed cost scales with FASTQ volume. Both were wrong — the first by ~4× high, the second
+  in its scaling law. Budget from the measured per-genome table above.)*
+- **Where the money actually goes (measured, one WGS genome, from the Nextflow execution trace):**
+
+  | step | CPU-hours | share |
+  |---|---|---|
+  | DeepVariant | 124.3 | **52%** |
+  | BWA-MEM alignment | 69.3 | **29%** |
+  | HaplotypeCaller | 25.1 | 10% |
+  | Strelka2 | 7.9 | 3% |
+  | FreeBayes | 2.3 | **1%** |
+  | everything else (QC, markdup, merges) | 10.0 | 4% |
+
+  Two counter-intuitive consequences. **FreeBayes is essentially free** — dropping it to save money
+  would buy ~1% while losing a caller that contributes to the >=2-caller rescue, so don't. And
+  **DeepVariant alone is over half the bill**, but it is the consensus backbone, so it is the one
+  caller you cannot drop. The genuinely large, zero-compromise lever is **alignment (29%)**: it
+  disappears entirely if you can start from an aligned GRCh38 CRAM instead of FASTQ.
 - **You only pay while jobs run** + a small amount for files sitting in the bucket.
-- The biggest waste is forgetting to delete the `work/` folder — do Step 6.
+- The biggest waste is forgetting to delete the `work/` folder — do Step 6. For WGS this
+  dominates: `work/` runs ~200 GB **per genome**, so an 8-genome cohort left behind costs
+  ~$30–60/month in storage — several times the compute that produced it.
 - **Clinical note:** before using results for patient care, the pipeline must be
   formally validated (run a known reference genome, "GIAB", and check the accuracy numbers).
 
