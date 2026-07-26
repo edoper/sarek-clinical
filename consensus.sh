@@ -214,9 +214,19 @@ for donor in "${DONOR_PRIORITY[@]}"; do
 done
 
 # ---- assemble: concat backbone + rescued, sort, index -----------------------
+# Written via a sibling .partial then renamed, so the final path is only ever
+# created complete. A kill mid-sort (Ctrl-C, WSL shutdown) would otherwise leave
+# a truncated VCF where a caller's resume guard reads it as finished work and
+# ships it to VEP/candidate-filtering. The .partial lives in the OUTPUT dir, not
+# WORKDIR, so the rename is a same-filesystem (atomic) one; index moves first so
+# the VCF appearing is itself the completion signal.
 OUT_MAIN="${OUT_PREFIX}.consensus.vcf.gz"
-{ bcftools concat -a "${CONCAT[@]}" | bcftools sort -Oz -o "$OUT_MAIN" ; } 2>>"$LOG"
-tabix -f -p vcf "$OUT_MAIN" 2>>"$LOG"
+OUT_TMP="${OUT_PREFIX}.consensus.vcf.gz.partial"
+rm -f "$OUT_MAIN" "$OUT_MAIN.tbi" "$OUT_TMP" "$OUT_TMP.tbi"
+{ bcftools concat -a "${CONCAT[@]}" | bcftools sort -Oz -o "$OUT_TMP" ; } 2>>"$LOG"
+tabix -f -p vcf "$OUT_TMP" 2>>"$LOG"
+mv -f "$OUT_TMP.tbi" "$OUT_MAIN.tbi"
+mv -f "$OUT_TMP" "$OUT_MAIN"
 log "FINAL consensus: $OUT_MAIN  [$(bcftools view -H "$OUT_MAIN" | wc -l) variants total]"
 log "consensus.sh done"
 echo "$OUT_MAIN"

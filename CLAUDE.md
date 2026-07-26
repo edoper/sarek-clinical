@@ -6,9 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Clinical **germline variant calling** on Google Cloud, feeding the separate `~/candidate-filtering`
 repo. Heavy work (nf-core/sarek via Nextflow on **Google Batch**) runs in the cloud; only small VCFs
-come local. There is no build/test suite — this is a collection of Bash/Python orchestration scripts
-plus Nextflow config, driven from WSL. `README.md` (WGS) and `BGE.md` (BGE exome) are the
+come local. There is no build step — this is a collection of Bash/Python orchestration scripts plus
+Nextflow config, driven from WSL. `README.md` (WGS) and `BGE.md` (BGE exome) are the
 plain-language user guides; read them for the end-to-end story before changing behavior.
+
+**One test suite exists and it covers the only logic that is ours:** `./test/test_consensus.sh`
+(synthetic data, no cloud, no patient data, ~4s). It pins the consensus rule (backbone + rescue +
+which sites get dropped) and the crash-safety invariants below. **Run it after touching
+`consensus.sh` or `consensus_from_results.sh`** — a broken merge yields a plausible VCF, not an
+error, so nothing else in the stack would catch it.
 
 ## The core idea: 4 callers → union consensus → filtering
 
@@ -65,6 +71,12 @@ which IDs, what was found) in a per-run note under `$WIN`, never in tracked docs
   `[[ ! -s VEPOUT ]]` treats a **partial** VEP VCF (killed mid-run) as "done" and would silently ship
   truncated candidatos. Such a script must **delete the partial VEP artifacts before re-annotating**.
   General rule: **any resume guard must invalidate partial outputs, not just test for existence.**
+  Enforced in the consensus stage too: `consensus.sh` writes `<out>.consensus.vcf.gz.partial` and
+  renames it (index first) only after `tabix` succeeds, so the final path is never created
+  half-written; `consensus_from_results.sh` skips a sample only when the VCF carries htslib's
+  28-byte **BGZF EOF block** *and* has a `.tbi`, else it deletes the leftovers and re-runs. Verified
+  by killing a 500k-variant run the instant the output file appears: the pre-fix code left a
+  truncated VCF at the final path that `[[ -s ]]` accepted as "done".
 - **A `$WIN` log mirror** — `cp -f` (never append) the orchestrator log to `$WIN` on an interval, because
   drvfs append-caching hides live progress from the Windows side (see the WSL gotcha below).
 - **Watch for placeholder samplesheets.** A committed `samplesheet-*.csv` example may hold `GS_CRAM_PATH_*`

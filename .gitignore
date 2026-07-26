@@ -39,6 +39,10 @@
 !run_epigen_wes.sh
 !upload_epigen_fastq.sh
 
+# Tests (synthetic data only — generated at runtime into a temp dir, never committed)
+!test/
+!test/test_consensus.sh
+
 # Explicitly NEVER tracked (covered by "*", here as documentation):
 #   samplesheet.csv  families.tsv             <- real inputs (patient IDs / gs:// CRAM paths)
 #   consensus/  *.vcf  *.vcf.gz  *.tbi         <- patient variants

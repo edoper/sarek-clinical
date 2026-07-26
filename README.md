@@ -193,6 +193,11 @@ sequencing data, so it does not need the cloud.
   variants, genotypes intact, each tagged with `CALLERS` / `NCALLERS` / `CONF` / `GT_SOURCE`.
 - `SAMPLE.consensus.log` — a record of exactly what was run (for clinical provenance).
 
+> **If it is interrupted, it leaves nothing behind.** The VCF is built in a `.partial` file and only
+> renamed into place once complete and indexed, so a Ctrl-C or shutdown leaves *no* output rather than
+> a truncated one — and re-running redoes that sample instead of trusting a half-written file. See
+> Section 8.
+
 ### Choosing how strict to be (the actual filter)
 The file is exactly the **"≥2 callers OR DeepVariant"** set from Section 4 — most sensitive,
 nothing real thrown away. To tighten it later, filter on the tags:
@@ -336,11 +341,41 @@ capture-kit target BED (GRCh38, chr-prefixed; e.g. Agilent SureSelect V6 `S07604
 
 ---
 
+## 8. Checking the consensus step still works
+
+`consensus.sh` is the only analysis logic this repo owns (everything else is standard Sarek), and a
+mistake in it produces a **plausible-looking VCF rather than an error** — so nothing downstream would
+notice. There is a test that pins its behaviour:
+
+```bash
+source ~/sarek-clinical/env.sh
+~/sarek-clinical/test/test_consensus.sh        # ~4 seconds
+```
+
+It makes up its own tiny genome and four fake caller files — **no cloud, no patient data, no network** —
+and checks two things:
+
+1. **The rule is still the rule.** A variant all four callers found comes out `HIGH` with DeepVariant's
+   genotype; a DeepVariant-only variant comes out `LOW`; a variant DeepVariant missed but three others
+   found is rescued with Strelka2's genotype; one only HaplotypeCaller and FreeBayes found is rescued
+   with HaplotypeCaller's; and variants only *one* non-DeepVariant caller found are correctly dropped.
+2. **A crash can't produce a half-finished result.** The consensus VCF is written to a temporary
+   `.partial` file and only renamed into place once it is complete and indexed. So if the run is
+   interrupted (Ctrl-C, laptop shutdown), there is simply **no output file** — rather than a truncated
+   one that a later re-run would mistake for finished work and pass on to VEP and candidate-filtering.
+   The test proves this by killing a large run mid-write and confirming the final file never appears.
+
+Run it after any change to `consensus.sh` or `consensus_from_results.sh`. It prints `ALL TESTS PASSED`
+or names exactly what broke.
+
+---
+
 ## Files in this repo
 
 **Shared core**
 - `consensus.sh` — union consensus: all DeepVariant calls + variants ≥2 other callers agree on (genotype borrowed from Strelka2/HaplotypeCaller), tagged with `CALLERS`/`NCALLERS`/`CONF`/`GT_SOURCE` (Section 5)
 - `env.sh` — loads Java + Nextflow into your terminal (and sets `NXF_SYNTAX_PARSER=v1`, required for sarek 3.8.1 on Nextflow 26.x)
+- `test/test_consensus.sh` — regression test for `consensus.sh` (Section 8)
 
 **WGS from FASTQ** (this guide)
 - `README.md` — this guide

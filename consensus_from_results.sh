@@ -22,6 +22,18 @@ CONSENSUS_SH="${CONSENSUS_SH:-$HOME/sarek-clinical/consensus.sh}"        # canon
 # (e.g. chr7_KI270803v1_alt) — which the Twist coding targets include.
 REF="${REF:-$HOME/sarek-clinical/refs/Homo_sapiens_assembly38.fasta}"
 
+# A resume guard must invalidate partial outputs, not merely test for existence.
+# A killed run (Ctrl-C, WSL shutdown) can leave a truncated .consensus.vcf.gz that
+# `-s` accepts as done, silently shipping an incomplete variant list to VEP and
+# candidate-filtering. htslib terminates every bgzip file with a fixed 28-byte BGZF
+# EOF block, so checking for it — plus the .tbi, which consensus.sh renames into
+# place only after a successful run — is a cheap, exact completeness test.
+BGZF_EOF="1f8b08040000000000ff0600424302001b0003000000000000000000"
+complete_vcf() {  # <path.vcf.gz> — true only if the VCF is whole AND indexed
+    [[ -s "$1" && -s "$1.tbi" ]] || return 1
+    [[ "$(tail -c 28 "$1" | od -An -tx1 | tr -d ' \n')" == "$BGZF_EOF" ]]
+}
+
 [[ -f "$SAMPLESHEET"  ]] || { echo "ERROR: $SAMPLESHEET not found"; exit 1; }
 [[ -x "$CONSENSUS_SH" ]] || { echo "ERROR: consensus.sh not found/executable: $CONSENSUS_SH"; exit 1; }
 [[ -f "$REF.fai"      ]] || { echo "ERROR: reference index missing: $REF.fai"; exit 1; }
@@ -46,10 +58,22 @@ samples=$(awk -F',' 'NR==1{for(i=1;i<=NF;i++) if($i=="sample") c=i; if(!c) c=2; 
 [[ -n "$samples" ]] || { echo "ERROR: no samples in $SAMPLESHEET"; exit 1; }
 FAILED_SAMPLES=()
 
+# EXIT, not RETURN: a RETURN trap only fires on function/sourced-script return, so
+# in this top-level loop it never ran and a killed run leaked its scratch dir.
+tmp=""
+cleanup_tmp() { [[ -n "${tmp:-}" ]] && rm -rf "$tmp"; return 0; }
+trap cleanup_tmp EXIT
+
 for s in $samples; do
-    if [[ -s "$LOCAL_OUT/$s.consensus.vcf.gz" ]]; then echo "=== $s (already done — skip) ==="; continue; fi
+    out="$LOCAL_OUT/$s.consensus.vcf.gz"
+    if complete_vcf "$out"; then echo "=== $s (already done — skip) ==="; continue; fi
+    # Present but incomplete: clear the leftovers so this sample is genuinely redone.
+    if [[ -e "$out" || -e "$out.partial" ]]; then
+        echo "  NOTE: $s has a partial/unindexed consensus VCF — discarding and re-running"
+        rm -f "$out" "$out.tbi" "$out.partial" "$out.partial.tbi"
+    fi
     echo "=== $s ==="
-    tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
+    tmp="$(mktemp -d)"
     declare -A vcf=()
     ok=1
     for caller in deepvariant strelka freebayes haplotypecaller; do
@@ -67,7 +91,8 @@ for s in $samples; do
         -c strelka="${vcf[strelka]}" \
         -c freebayes="${vcf[freebayes]}" \
         -c haplotypecaller="${vcf[haplotypecaller]}"; then
-        echo "  WARN: consensus failed for $s — continuing"; FAILED_SAMPLES+=("$s"); rm -f "$LOCAL_OUT/$s.consensus.vcf.gz"
+        echo "  WARN: consensus failed for $s — continuing"; FAILED_SAMPLES+=("$s")
+        rm -f "$out" "$out.tbi" "$out.partial" "$out.partial.tbi"
     fi
     rm -rf "$tmp"
 done
