@@ -80,5 +80,6 @@ echo "===== Stage 5: per-sample QC gate ====="
 # ── Stage 6: benchmark ──
 echo "===== Stage 6: benchmark vs GIAB v4.2.1 ====="
 cd ..
-CONS="$WORK/consensus/HG002EX.consensus.vcf.gz" OUT=results-eval-exome ./benchmark_giab.sh
+CONS="$WORK/consensus/HG002EX.consensus.vcf.gz" OUT=results-eval-exome \
+  PANEL_BED="${PANEL_BED:-../giab-validation/g4e_panel.bed}" ./benchmark_giab.sh
 echo "===== exome validation complete ====="

@@ -19,7 +19,10 @@ TRUTH=truth/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
 CONF_BED=truth/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
 CONS="${CONS:-consensus/HG002.consensus.vcf.gz}"
 EXOME_BED="${EXOME_BED:-../refs/S07604514_V6r2_Padded.GRCh38.bed}"
-OUT=results-eval; mkdir -p "$OUT"
+# Optional gene-panel BED (e.g. the g4e epilepsy panel). Accuracy varies more by REGION
+# than by tier, so the panel number is the one to quote when you report from a panel.
+PANEL_BED="${PANEL_BED:-}"
+OUT="${OUT:-results-eval}"; mkdir -p "$OUT"
 
 for f in "$RTG" "$TRUTH" "$CONF_BED" "$CONS"; do
     [ -e "$f" ] || { echo "ERROR: missing $f"; exit 1; }
@@ -43,6 +46,9 @@ run_eval() { # <label> <query.vcf.gz> [extra-bed]
 echo "== building confidence tiers from the consensus VCF =="
 bcftools view -i 'NCALLERS>=2' "$CONS" -Oz -o "$OUT/tier.ncallers2.vcf.gz" && tabix -f -p vcf "$OUT/tier.ncallers2.vcf.gz"
 bcftools view -i 'CONF="HIGH"'  "$CONS" -Oz -o "$OUT/tier.confhigh.vcf.gz"  && tabix -f -p vcf "$OUT/tier.confhigh.vcf.gz"
+# DeepVariant alone — the backbone, and the most informative baseline: it tells you whether
+# the >=2-caller rescue arm is adding value or just false positives.
+bcftools view -i 'CALLERS~"deepvariant"' "$CONS" -Oz -o "$OUT/tier.dvonly.vcf.gz" && tabix -f -p vcf "$OUT/tier.dvonly.vcf.gz"
 printf "  union: %s | NCALLERS>=2: %s | CONF=HIGH: %s\n" \
   "$(bcftools index -n "$CONS")" "$(bcftools index -n "$OUT/tier.ncallers2.vcf.gz")" "$(bcftools index -n "$OUT/tier.confhigh.vcf.gz")"
 
@@ -51,6 +57,7 @@ echo "== genome-wide, inside GIAB high-confidence regions =="
 run_eval union-genomewide  "$CONS"                      || true
 run_eval ncallers2         "$OUT/tier.ncallers2.vcf.gz" || true
 run_eval confhigh          "$OUT/tier.confhigh.vcf.gz"  || true
+run_eval dvonly            "$OUT/tier.dvonly.vcf.gz"   || true
 
 if [ -s "$EXOME_BED" ]; then
     echo
@@ -71,6 +78,21 @@ if [ -s "$EXOME_BED" ]; then
     run_eval union-exome "$CONS" "$OUT/conf_exome.bed" || true
 else
     echo "  (no exome BED at $EXOME_BED — skipping the exome-restricted row)"
+fi
+
+if [ -n "$PANEL_BED" ] && [ -s "$PANEL_BED" ]; then
+    echo
+    echo "== gene-panel-restricted (panel BED ∩ GIAB high-confidence) =="
+    sort -k1,1 -k2,2n "$PANEL_BED" > "$OUT/panel.sorted.bed"
+    if command -v bedtools >/dev/null; then
+        bedtools intersect -a "$OUT/conf.sorted.bed" -b "$OUT/panel.sorted.bed" > "$OUT/conf_panel.bed" 2>/dev/null \
+          || { sort -k1,1 -k2,2n "$CONF_BED" > "$OUT/conf.sorted.bed"; bedtools intersect -a "$OUT/conf.sorted.bed" -b "$OUT/panel.sorted.bed" > "$OUT/conf_panel.bed"; }
+    fi
+    if [ -s "$OUT/conf_panel.bed" ]; then
+        echo "  panel ∩ high-conf regions: $(wc -l < "$OUT/conf_panel.bed")"
+        run_eval panel-union "$CONS" "$OUT/conf_panel.bed" || true
+        run_eval panel-dvonly "$OUT/tier.dvonly.vcf.gz" "$OUT/conf_panel.bed" || true
+    fi
 fi
 
 echo
