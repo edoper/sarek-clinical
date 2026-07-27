@@ -30,7 +30,7 @@ row() { # <tier> <class>
 
 echo "| tier | class | TP | FP | FN | precision | recall | F1 |"
 echo "|---|---|---|---|---|---|---|---|"
-for tier in dvonly union-genomewide ncallers2 confhigh union-exome; do
+for tier in panel-dvonly panel-union panel-ncallers2 panel-confhigh; do
     [ -d "$OUT/$tier" ] || continue
     row "$tier" snps
     row "$tier" indels

@@ -57,6 +57,34 @@ consensus), inside GIAB high-confidence regions.
 | INDEL | 10,563 | 66 | 103 | 0.9941 | 0.9903 | 0.9922 |
 | combined | 97,092 | 890 | 1,181 | 0.9910 | 0.9880 | 0.9895 |
 
+## Restricted to the g4e epilepsy panel — the territory that actually matters
+
+Panel BED built from GENCODE v38 exons (±20 bp for splice regions) of the 1,078 Genes4Epilepsy
+symbols; 1,066 located (12 are newer HGNC symbols absent from v38, e.g. `GBA1`, `BMAL1`). 6.20 Mb,
+intersected with GIAB high-confidence → **5.67 Mb, 16,671 intervals, 4,111 true variants**.
+
+| tier | SNV TP / FP / FN | INDEL TP / FP / FN | total FP |
+|---|---|---|---|
+| **DeepVariant alone** | 3,515 / **4** / 6 | 586 / **2** / 4 | **6** |
+| union (clinical default) | 3,515 / 5 / 6 | 586 / 4 / 4 | 9 |
+| `NCALLERS>=2` | 3,515 / 5 / 6 | 586 / 3 / 4 | 8 |
+| `CONF=HIGH` | 3,515 / 4 / 6 | 585 / 4 / 5 | 8 |
+
+**Every tier recovers exactly the same 4,101 true variants.** The rescue arm recovered **zero**
+additional true variants inside the panel, and added **3 false positives** (6 → 9). `CONF=HIGH` is
+the only tier that loses anything: one indel.
+
+**So inside the clinical territory the tier choice is practically irrelevant** — a 3-variant
+difference across 1,066 genes, on calls that the downstream rare/damaging/MANE gates would very
+likely drop anyway. The genome-wide 8.7:1 penalty is real but concentrated **outside** the regions
+this pipeline reports on.
+
+Two caveats. **Numbers are small** — 6 vs 9 false positives cannot be distinguished statistically
+from one sample, and ~2–3 rescued true variants would have been the expected count in 5.67 Mb, so
+observing zero is consistent with a small benefit as well as none. And **HG002 is a healthy
+reference genome**: it says nothing about how the tiers behave on the pathogenic variants a patient
+actually carries.
+
 ## What this says about the consensus design
 
 > **CORRECTION (2026-07-27).** An earlier version of this file claimed the union tier had the best
@@ -88,8 +116,11 @@ misses 3.5× as many indels. Cross-caller agreement is weakest exactly where cal
 disagree on indel representation, so requiring three callers discards real indels. **Do not use
 `CONF=HIGH` for indel-sensitive questions.**
 
-**What to do about the rescue arm.** It is not obviously worth keeping as-is. Options, in order of
-how much work they are:
+**What to do about the rescue arm — measured answer: leave it alone.** The panel-restricted
+comparison above shows the genome-wide penalty does not reach the reported territory (0 true
+variants gained, 3 false positives added, across 1,066 genes). Changing the default would be
+optimising a number nobody reads. The options below remain available if the genome-wide behaviour
+ever matters (e.g. a WGS arm reporting outside a panel):
 
 1. **Report `GT_SOURCE != deepvariant` rows as a separate, lower-confidence tier** rather than mixing
    them into the primary list. Costs nothing, keeps the sensitivity, moves the false positives out of
