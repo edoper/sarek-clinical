@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 #
 # run_bge_annotate_filter.sh — feed the local BGE consensus VCFs into VEP + candidate-filtering.
-#   1. VEP-annotate each ~/sarek-clinical/consensus-cohort/<sample>.consensus.vcf.gz
+#   1. VEP-annotate each <repo>/consensus-cohort/<sample>.consensus.vcf.gz
 #      -> <WD>/<sample>.germline.vep.vcf.gz   (resumable; one isolated workdir so the
-#         63 BGE samples don't collide with the DRAGEN VEP VCFs in ~/candidate-filtering).
+#         BGE samples don't collide with other VEP VCFs in candidate-filtering).
 #   2. run_filtering.sh in that workdir -> <proband>.<panel>.candidatos (auto-discovers trios/duos).
 #   3. Copy the .candidatos to $WIN.
-# Progress: tail this script's log, or `watch ~/sarek-clinical/bge_filter_progress.sh`.
+# Progress: tail this script's log, or `watch <repo>/bge_filter_progress.sh`.
 set -uo pipefail
 
-CONS_DIR="${CONS_DIR:-$HOME/sarek-clinical/consensus-cohort}"
-CF="${CF:-$HOME/candidate-filtering}"
-WD="${WD:-$CF/bge-cohort}"
-WIN="${WIN:-/mnt/c/Users/epere/Documents}"
+. "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/site.sh"
+CONS_DIR="${CONS_DIR:-$SAREK_REPO/consensus-cohort}"
+WD="${WD:-$CF/bge-cohort}"   # CF + WIN come from site.sh (WIN empty => no copy-out)
 VEP="$CF/vep_annotate.sh"
+[ -d "$CF" ] || { echo "ERROR: candidate-filtering repo not found at '$CF'."; echo "       Set CF=/path/to/candidate-filtering (or put it beside this repo)."; exit 1; }
+[ -f "$VEP" ] || { echo "ERROR: $VEP not found — is '$CF' really the candidate-filtering repo?"; exit 1; }
 mkdir -p "$WD"
 
 # Isolated workdir needs the code + reference config (filtering_r.pl reads them from cwd).
@@ -48,8 +49,15 @@ echo "[annotate] complete: $((total-${#failed[@]}))/$total ok${failed:+; failed:
 echo "[filter] running candidate-filtering in $WD ..."
 WORKDIR="$WD" bash "$CF/run_filtering.sh"
 
-# ── Step 3: collect candidatos to Windows ──
+# ── Step 3: collect candidatos to the deliverable folder ──
+# WIN is a WSL convenience (a Windows-side folder). Unset — the normal case off WSL —
+# means there is nowhere to copy to, so the results simply stay in $WD.
 OUT_NAME="${OUT_NAME:-bge-candidatos}"          # override for other cohorts (e.g. epigen-candidatos)
-mkdir -p "$WIN/$OUT_NAME"
-cp "$WD"/*.candidatos "$WIN/$OUT_NAME/" 2>/dev/null
-echo "[done] $(ls "$WD"/*.candidatos 2>/dev/null | wc -l) candidatos -> $WIN/$OUT_NAME/"
+n=$(ls "$WD"/*.candidatos 2>/dev/null | wc -l)
+if [ -n "$WIN" ]; then
+    mkdir -p "$WIN/$OUT_NAME"
+    cp "$WD"/*.candidatos "$WIN/$OUT_NAME/" 2>/dev/null
+    echo "[done] $n candidatos -> $WIN/$OUT_NAME/"
+else
+    echo "[done] $n candidatos in $WD/  (set WIN=/path/to/folder to copy them out)"
+fi

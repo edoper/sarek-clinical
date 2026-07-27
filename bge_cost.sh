@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # Live COST bar for a BGE Sarek Batch run — reconstructs accrued Google Batch Spot
 # spend from the job records (control-plane listing only: NO compute, NO egress).
-# Live:   watch -n 60 ~/sarek-clinical/bge_cost.sh
+# Live:   watch -n 60 <repo>/bge_cost.sh
 #
 # Env:
 #   SINCE   ISO8601 lower bound on job createTime (default: 36h ago, i.e. this run).
 #           For an exact run set e.g. SINCE=2026-06-14T00:00:00Z
 #   BUDGET  budget ceiling in USD for the bar (default 20)
-#   REGION  Batch location (default us-central1)
+#   REGION  Batch location (default $SAREK_REGION, else us-central1)
 #   FRAC    optional completion fraction 0<f<=1 (from the progress bar) → prints a
 #           projected final cost = accrued / FRAC. The dashboard passes this in.
 set -euo pipefail
-REGION="${REGION:-us-central1}"
+REGION="${REGION:-${SAREK_REGION:-us-central1}}"
 BUDGET="${BUDGET:-20}"
 SINCE="${SINCE:-$(date -u -d '36 hours ago' +%Y-%m-%dT%H:%M:%SZ)}"
 NOW=$(date -u +%s)

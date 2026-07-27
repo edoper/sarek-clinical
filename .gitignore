@@ -16,6 +16,7 @@
 !LICENSE
 !consensus.sh
 !env.sh
+!site.sh
 
 # WGS-from-FASTQ entry point
 !gcb.config
@@ -47,3 +48,4 @@
 #   samplesheet.csv  families.tsv             <- real inputs (patient IDs / gs:// CRAM paths)
 #   consensus/  *.vcf  *.vcf.gz  *.tbi         <- patient variants
 #   work/  results/  .nextflow*  *.html  *.log  null/   <- run artifacts
+#   site.env                                   <- YOUR project/bucket/paths (see site.sh)

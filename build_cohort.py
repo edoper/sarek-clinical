@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # Build families.tsv + a CRAM staging list from a Terra sample-table export.
 # Role: proband = no suffix; <id>M = madre(-M); <id>P = padre(-F).
-import csv, re, sys
+import csv, os, re, sys
 TSV = sys.argv[1]
-DST = "gs://intergenica-sarek-clinical/bge-wes/crams-cohort"
+# Where the CRAMs will be staged. Follows SAREK_BUCKET (set by site.sh/env.sh) so this
+# is not tied to one deployment; override DST directly to place them elsewhere.
+BUCKET = os.environ.get("SAREK_BUCKET", "gs://intergenica-sarek-clinical")
+DST = os.environ.get("DST", BUCKET + "/bge-wes/crams-cohort")
 def classify(cid):
     m = re.match(r"^(.+\d)M$", cid)
     if m: return m.group(1), "M"

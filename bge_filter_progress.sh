@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Zero-cost progress bar for the BGE annotate+filter stage. Live:  watch -n 30 ~/sarek-clinical/bge_filter_progress.sh
-CONS="${CONS_DIR:-$HOME/sarek-clinical/consensus-cohort}"
-WD="${WD:-$HOME/candidate-filtering/bge-cohort}"
+# Zero-cost progress bar for the BGE annotate+filter stage. Live:  watch -n 30 <repo>/bge_filter_progress.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/site.sh"
+CONS="${CONS_DIR:-$SAREK_REPO/consensus-cohort}"
+WD="${WD:-$CF/bge-cohort}"
 total=$(ls "$CONS"/*.consensus.vcf.gz 2>/dev/null | wc -l); [ "$total" -gt 0 ] || total=63
 vep=$(ls "$WD"/*.germline.vep.vcf.gz 2>/dev/null | wc -l)
 cand=$(ls "$WD"/*.candidatos 2>/dev/null | wc -l)

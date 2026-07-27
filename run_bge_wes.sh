@@ -9,11 +9,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-source ~/sarek-clinical/env.sh          # nextflow + JDK + NXF_SYNTAX_PARSER=v1
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/env.sh"   # toolchain + site settings
 
 SAMPLESHEET="${SAMPLESHEET:-samplesheet.csv}"
-OUTDIR="${OUTDIR:-gs://intergenica-sarek-clinical/bge-wes/results}"
-INTERVALS="${INTERVALS:?set INTERVALS to your exome targets, e.g. gs://intergenica-sarek-clinical/bge-wes/targets/bge_calling_regions.bed}"
+OUTDIR="${OUTDIR:-$SAREK_BUCKET/bge-wes/results}"
+INTERVALS="${INTERVALS:?set INTERVALS to your exome targets, e.g. \$SAREK_BUCKET/bge-wes/targets/bge_calling_regions.bed}"
 
 [[ -f "$SAMPLESHEET" ]] || { echo "ERROR: $SAMPLESHEET not found (run make_samplesheet.sh first)"; exit 1; }
 

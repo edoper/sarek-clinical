@@ -45,6 +45,25 @@ computers down automatically. You only pay while they run.
   - `results/` → your output (variants + quality reports)
 - **Your laptop (WSL):** Java + Nextflow installed; settings file `gcb.config` ready.
 
+### Using this pipeline in **your own** Google project
+
+Those are just this deployment's defaults — nothing in the repo is tied to one machine or person.
+Create a file called `site.env` next to `site.sh` with your own values and everything (scripts *and*
+Nextflow configs) follows it:
+
+```bash
+# site.env — never committed; this is where your own settings belong
+SAREK_PROJECT=my-gcp-project
+SAREK_BUCKET=gs://my-bucket
+SAREK_REGION=us-central1
+CF=$HOME/code/candidate-filtering       # the downstream repo (default: beside this one)
+WIN=/mnt/c/Users/me/Documents           # WSL only — leave unset on Linux/macOS
+```
+
+Then `source env.sh` as usual; it prints which project and bucket you are pointed at. You can also
+just `export` those variables instead. The repo can live in any folder — paths are derived from where
+the scripts actually are, not from a fixed home directory.
+
 ---
 
 ## 3. How to run it, step by step
@@ -373,8 +392,9 @@ or names exactly what broke.
 ## Files in this repo
 
 **Shared core**
+- `site.sh` — one place for project/bucket/local paths (`SAREK_*`, `CF`, `WIN`); override in an untracked `site.env` (Section 2)
 - `consensus.sh` — union consensus: all DeepVariant calls + variants ≥2 other callers agree on (genotype borrowed from Strelka2/HaplotypeCaller), tagged with `CALLERS`/`NCALLERS`/`CONF`/`GT_SOURCE` (Section 5)
-- `env.sh` — loads Java + Nextflow into your terminal (and sets `NXF_SYNTAX_PARSER=v1`, required for sarek 3.8.1 on Nextflow 26.x)
+- `env.sh` — sources `site.sh`, then loads Java + Nextflow into your terminal (and sets `NXF_SYNTAX_PARSER=v1`, required for sarek 3.8.1 on Nextflow 26.x)
 - `test/test_consensus.sh` — regression test for `consensus.sh` (Section 8)
 
 **WGS from FASTQ** (this guide)

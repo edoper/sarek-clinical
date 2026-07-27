@@ -17,15 +17,15 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-source ~/sarek-clinical/env.sh          # nextflow + JDK + NXF_SYNTAX_PARSER=v1
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/env.sh"   # toolchain + site settings
 
 SAMPLESHEET="${SAMPLESHEET:-samplesheet-epigen.csv}"
-OUTDIR="${OUTDIR:-gs://intergenica-sarek-clinical/epigen-wes/results}"
-WORKDIR="${WORKDIR:-gs://intergenica-sarek-clinical/epigen-wes/work}"
+OUTDIR="${OUTDIR:-$SAREK_BUCKET/epigen-wes/results}"
+WORKDIR="${WORKDIR:-$SAREK_BUCKET/epigen-wes/work}"
 # GRCh38, chr-prefixed. Default = the exact Agilent SureSelect V6 r2 (S07604514, hg38)
 # Padded BED — kit-exact for the EPIGEN capture. 187k intervals / 100.8 Mb (padded).
-# Fallback: gs://intergenica-sarek-clinical/bge-wes/targets/twist_coding_targets.bed (Twist coding).
-INTERVALS="${INTERVALS:-gs://intergenica-sarek-clinical/epigen-wes/targets/S07604514_V6r2_Padded.GRCh38.bed}"  # Agilent SureSelect V6 r2 (kit-exact)
+# Fallback: $SAREK_BUCKET/bge-wes/targets/twist_coding_targets.bed (Twist coding).
+INTERVALS="${INTERVALS:-$SAREK_BUCKET/epigen-wes/targets/S07604514_V6r2_Padded.GRCh38.bed}"  # Agilent SureSelect V6 r2 (kit-exact)
 
 [[ -f "$SAMPLESHEET" ]] || { echo "ERROR: $SAMPLESHEET not found (run the prep first)"; exit 1; }
 

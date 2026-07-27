@@ -74,6 +74,11 @@ genome is properly used by **imputation (GLIMPSE, arm 2)** — not by widening t
 
 ---
 
+> **Another project?** The `gs://intergenica-sarek-clinical` paths below are this deployment's
+> defaults. Put your own `SAREK_PROJECT` / `SAREK_BUCKET` in an untracked `site.env` (see
+> [README §2](README.md#2-whats-already-set-up-you-dont-need-to-redo-this)) and every command here
+> follows them unchanged.
+
 ## Inputs you must provide
 
 1. **CRAM locations** — Terra BGE CRAMs as `gs://` URIs + family/role/sex → `families.tsv` (see `families.example.tsv`).

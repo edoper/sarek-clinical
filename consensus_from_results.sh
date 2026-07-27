@@ -2,7 +2,7 @@
 #
 # consensus_from_results.sh — bridge step between cloud calling and local interpretation.
 # For each sample it pulls the four small per-caller VCFs from the bucket and runs the
-# canonical consensus.sh (reused from ~/sarek-clinical — NOT duplicated here), producing
+# canonical consensus.sh (reused from this repo — NOT duplicated here), producing
 # <sample>.consensus.vcf.gz ready for vep_annotate.sh + candidate-filtering.
 #
 # Consensus is a ~seconds bcftools step on tiny exome VCFs, so it runs locally on the
@@ -12,15 +12,16 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+. "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/site.sh"
 SAMPLESHEET="${SAMPLESHEET:-samplesheet.csv}"
-OUTDIR="${OUTDIR:-gs://intergenica-sarek-clinical/bge-wes/results}"      # Sarek --outdir (cloud)
+OUTDIR="${OUTDIR:-$SAREK_BUCKET/bge-wes/results}"      # Sarek --outdir (cloud)
 LOCAL_OUT="${LOCAL_OUT:-./consensus}"                                    # where consensus VCFs land
-CONSENSUS_SH="${CONSENSUS_SH:-$HOME/sarek-clinical/consensus.sh}"        # canonical script (reused)
+CONSENSUS_SH="${CONSENSUS_SH:-$SAREK_REPO/consensus.sh}"        # canonical script (reused)
 # MUST match the reference the calls were made against (GATK.GRCh38 =
 # Homo_sapiens_assembly38, INCLUDING ALT/decoy contigs). The GENCODE primary-assembly
 # fasta lacks ALT contigs, so `bcftools norm -f` fails on any call on an ALT contig
 # (e.g. chr7_KI270803v1_alt) — which the Twist coding targets include.
-REF="${REF:-$HOME/sarek-clinical/refs/Homo_sapiens_assembly38.fasta}"
+REF="${REF:-$SAREK_REPO/refs/Homo_sapiens_assembly38.fasta}"
 
 # A resume guard must invalidate partial outputs, not merely test for existence.
 # A killed run (Ctrl-C, WSL shutdown) can leave a truncated .consensus.vcf.gz that

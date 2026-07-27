@@ -3,7 +3,7 @@
 # + live Spot cost/budget bar with a projected final cost. All monitoring is
 # control-plane/listing only (no compute, no egress).
 #
-# Live:   watch -n 30 ~/sarek-clinical/bge_dashboard.sh
+# Live:   watch -n 30 <repo>/bge_dashboard.sh
 # Env:    BUDGET (USD, default 20), SINCE (cost window, default 36h ago),
 #         plus anything bge_progress.sh / bge_filter_progress.sh / bge_cost.sh accept.
 HERE="$(cd "$(dirname "$0")" && pwd)"

@@ -82,7 +82,16 @@ which IDs, what was found) in a per-run note under `$WIN`, never in tracked docs
 - **Watch for placeholder samplesheets.** A committed `samplesheet-*.csv` example may hold `GS_CRAM_PATH_*`
   placeholders — never feed one to a real run.
 
-## Fixed cloud environment (already provisioned — do not re-scaffold)
+## Cloud environment (provisioned — do not re-scaffold; portable via site.sh)
+
+**Nothing is hardcoded to one machine or person.** `site.sh` (sourced by `env.sh` and by every
+script) defines `SAREK_REPO` (derived from the file's own location, so any checkout path works),
+`SAREK_PROJECT` / `SAREK_REGION` / `SAREK_BUCKET`, `CF` (candidate-filtering, default a sibling
+checkout) and `WIN` (empty by default). Override by exporting, or in an untracked **`site.env`**
+beside `site.sh`. The three `gcb*.config` files read the same `SAREK_*` env vars via
+`System.getenv(...) ?: <default>`, so setting them once retargets both the shell scripts and
+Nextflow. **Never put a personal path or a new deployment's ids in a tracked file** — that is what
+`site.env` is for. Defaults below are this deployment; they are a starting point, not a requirement.
 
 - GCP project `intergenica`, region **us-central1**, billing "Computacion-nube".
 - Bucket `gs://intergenica-sarek-clinical` (`fastq/`, `work/`, `results/`; BGE under `bge-wes/`,
@@ -212,4 +221,6 @@ Scripts are env-var driven (override without editing): `SAMPLESHEET` `OUTDIR` `I
   Large gaps are expected **only** at centromeres, acrocentric short arms, and heterochromatin
   (1q12, 9q12, 16q11.2, Yq12) — anywhere else means lost work.
 
-- **`$WIN`** = `/mnt/c/Users/epere/Documents` — the Windows-side deliverable folder outputs are copied to.
+- **`$WIN`** — optional Windows-side deliverable folder (a WSL convenience) that `.candidatos` are
+  copied to. **Empty by default**; unset simply means no copy-out and results stay in `$WD`. Set it
+  in `site.env`, never in a tracked file — it embeds a username.
