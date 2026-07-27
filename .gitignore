@@ -56,6 +56,8 @@
 !validation/RESULTS-HG002.md
 !validation/RESULTS-HG002-EXOME.md
 !validation/SOP.md
+!validation/EFFICIENCY.md
+!validation/orchestrate_exome.sh
 !validation/run_giab_exome.sh
 !validation/split_metrics.sh
 

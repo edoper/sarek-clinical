@@ -208,20 +208,20 @@ Scripts are env-var driven (override without editing): `SAMPLESHEET` `OUTDIR` `I
 - **Nextflow's per-caller task counts are not file counts.** DeepVariant emits *both* `.vcf.gz` and
   `.g.vcf.gz` per sample, so counting `*.vcf.gz` double-counts it (a monitor read `76/56`). Count
   sample **directories** under `results/variant_calling/<caller>/` instead — exact and caller-agnostic.
-- **`--skip_tools vcftools` does not skip `BCFTOOLS_STATS`.** The `VCF_QC_BCFTOOLS_VCFTOOLS` subworkflow
-  still runs its bcftools half, which can fail on Spot and (without the `5000x` retry above) abort a
-  finished run over a stats file. **Measured cost in wall clock (GIAB run, 2026-07-27): the four
-  callers finished in 7.4 h, then `BCFTOOLS_STATS` spent ~4 h being preempted and retried on a single
-  Spot VM** — cheap (~$0.08) but it makes a run look hung long after the science is done. Judge
-  "is it finished?" by whether `results/variant_calling/<caller>/<sample>/` holds the merged VCFs,
-  not by the driver exiting.
-- **`haplotypecaller_filter` (CNNScoreVariants) runs by default and is NOT a free thing to skip.**
-  It is absent from the usual skip list, so every run pays for it, and it stages the Mills/1000G
-  bundle **from S3** (slow). Tempting to add to `--skip_tools` — but it changes the science:
-  `consensus_from_results.sh` prefers `*.haplotypecaller.filtered.vcf.gz` when present, so skipping
-  it feeds the **raw** HaplotypeCaller calls into the consensus instead of the CNN-filtered ones.
-  The GIAB validation (F1 0.9948) was measured **with** it, matching production. Changing this flag
-  invalidates that number — re-run `validation/` if you do.
+- **`--skip_tools vcftools` does not skip `BCFTOOLS_STATS`.** The `VCF_QC_BCFTOOLS_VCFTOOLS`
+  subworkflow still runs its bcftools half, which can fail on Spot and (without the `5000x` retry
+  above) abort a finished run over a stats file. (It is cheap — 4 invocations, 6-23 s each, in the
+  GIAB run.)
+- **`CNNSCOREVARIANTS` is the wall-clock bottleneck of a WGS run: ONE serial task, 3 h 55 m, 2
+  cores.** Measured from the GIAB execution trace (2026-07-27): 34% of the entire 11.4 h wall clock
+  for 2.7% of the CPU cost, while every other stage was long finished. A run looks hung for hours
+  here. It is enabled because `haplotypecaller_filter` is absent from `--skip_tools`.
+  **It is still NOT free to skip:** `consensus_from_results.sh` prefers
+  `*.haplotypecaller.filtered.vcf.gz`, so skipping it feeds the RAW HaplotypeCaller calls into the
+  consensus instead of the CNN-filtered ones. The GIAB numbers (F1 0.9948) were measured WITH it.
+  Skipping it is a legitimate ~4 h saving but changes the science — re-run `validation/` if you do.
+  *(An earlier revision of this file blamed the stall on `BCFTOOLS_STATS`; the execution trace shows
+  that was wrong.)*
 - **A gzip integrity test on a *truncated* slice can never pass, and `zcat | head` fails under
   `pipefail`.** Two ways a "cheap sanity check" rejects a perfectly good FASTQ: `head -c 1M f.gz |
   gzip -t` tests an incomplete gzip member (always fails); and `zcat f.gz | head -1` gives `zcat`
