@@ -191,7 +191,18 @@ Scripts are env-var driven (override without editing): `SAMPLESHEET` `OUTDIR` `I
   sample **directories** under `results/variant_calling/<caller>/` instead — exact and caller-agnostic.
 - **`--skip_tools vcftools` does not skip `BCFTOOLS_STATS`.** The `VCF_QC_BCFTOOLS_VCFTOOLS` subworkflow
   still runs its bcftools half, which can fail on Spot and (without the `5000x` retry above) abort a
-  finished run over a stats file.
+  finished run over a stats file. **Measured cost in wall clock (GIAB run, 2026-07-27): the four
+  callers finished in 7.4 h, then `BCFTOOLS_STATS` spent ~4 h being preempted and retried on a single
+  Spot VM** — cheap (~$0.08) but it makes a run look hung long after the science is done. Judge
+  "is it finished?" by whether `results/variant_calling/<caller>/<sample>/` holds the merged VCFs,
+  not by the driver exiting.
+- **`haplotypecaller_filter` (CNNScoreVariants) runs by default and is NOT a free thing to skip.**
+  It is absent from the usual skip list, so every run pays for it, and it stages the Mills/1000G
+  bundle **from S3** (slow). Tempting to add to `--skip_tools` — but it changes the science:
+  `consensus_from_results.sh` prefers `*.haplotypecaller.filtered.vcf.gz` when present, so skipping
+  it feeds the **raw** HaplotypeCaller calls into the consensus instead of the CNN-filtered ones.
+  The GIAB validation (F1 0.9948) was measured **with** it, matching production. Changing this flag
+  invalidates that number — re-run `validation/` if you do.
 - **A gzip integrity test on a *truncated* slice can never pass, and `zcat | head` fails under
   `pipefail`.** Two ways a "cheap sanity check" rejects a perfectly good FASTQ: `head -c 1M f.gz |
   gzip -t` tests an incomplete gzip member (always fails); and `zcat f.gz | head -1` gives `zcat`

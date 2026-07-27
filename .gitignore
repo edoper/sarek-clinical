@@ -44,6 +44,16 @@
 !test/
 !test/test_consensus.sh
 
+# GIAB validation harness + results (HG002 is a PUBLIC reference sample, not a patient,
+# so its accuracy numbers are publishable — that is the point of a validation).
+# The bulk data it downloads (truth/, *.sdf, consensus/, rtg-tools/) stays ignored.
+!validation/
+!validation/README.md
+!validation/run_giab.sh
+!validation/benchmark_giab.sh
+!validation/health_check.sh
+!validation/RESULTS-HG002.md
+
 # Explicitly NEVER tracked (covered by "*", here as documentation):
 #   samplesheet.csv  families.tsv             <- real inputs (patient IDs / gs:// CRAM paths)
 #   consensus/  *.vcf  *.vcf.gz  *.tbi         <- patient variants

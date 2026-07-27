@@ -10,9 +10,14 @@
 # names carry the -P/-M/-F convention, so the consensus outputs feed candidate-filtering
 # trio/duo auto-discovery directly.
 set -euo pipefail
-cd "$(dirname "$0")"
+# Resolve the script's own directory BEFORE the cd below: afterwards a relative
+# "$0" would be interpreted against the new cwd and site.sh would be looked for in
+# the wrong place (invoking this as ../consensus_from_results.sh looked for
+# /home/<user>/site.sh). readlink -f also survives being reached via a symlink.
+_SELF_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]:-$0}")")" && pwd)"
+cd "$_SELF_DIR"
 
-. "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/site.sh"
+. "$_SELF_DIR/site.sh"
 SAMPLESHEET="${SAMPLESHEET:-samplesheet.csv}"
 OUTDIR="${OUTDIR:-$SAREK_BUCKET/bge-wes/results}"      # Sarek --outdir (cloud)
 LOCAL_OUT="${LOCAL_OUT:-./consensus}"                                    # where consensus VCFs land

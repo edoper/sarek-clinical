@@ -440,8 +440,16 @@ This is where the project's downstream **candidate-filtering** step takes over.
 - The biggest waste is forgetting to delete the `work/` folder — do Step 6. For WGS this
   dominates: `work/` runs ~200 GB **per genome**, so an 8-genome cohort left behind costs
   ~$30–60/month in storage — several times the compute that produced it.
-- **Clinical note:** before using results for patient care, the pipeline must be
-  formally validated (run a known reference genome, "GIAB", and check the accuracy numbers).
+- **Validation status — DONE (2026-07-27):** the pipeline has been run against the GIAB **HG002**
+  reference genome and scored with RTG `vcfeval` against the **GIAB v4.2.1** truth set.
+  **Genome-wide F1 = 0.9948** (SNV 0.9949, INDEL 0.9941; precision 0.9959, recall 0.9936) inside
+  GIAB high-confidence regions, for the default union consensus. Full numbers, per-tier comparison
+  and limitations: **[validation/RESULTS-HG002.md](validation/RESULTS-HG002.md)**; how to re-run:
+  [validation/README.md](validation/README.md). The validation cost **$4.68**.
+  This measures the *variant-calling* pipeline only, inside high-confidence regions, for SNVs and
+  small indels — it does not cover structural variants, and it does not validate the downstream
+  `candidate-filtering` interpretation step. Local clinical governance still applies before use in
+  patient care.
 
 ---
 
@@ -561,6 +569,9 @@ or names exactly what broke.
 - `run_epigen_wes.sh` — launch exome calling from FASTQ (`--step mapping --wes`, kit BED, on-demand-capable via `SAREK_SPOT`)
 - `upload_epigen_fastq.sh` — resumable FASTQ → bucket upload (parallel-composite disabled for WSL/`/mnt/c` reliability)
 - Monitoring: `bge_cost.sh` (live Spot/on-demand cost vs budget), `bge_dashboard.sh`, `bge_progress.sh` / `bge_filter_progress.sh`
+
+**Validation**
+- `validation/` — GIAB HG002 accuracy validation: `run_giab.sh` (end to end), `benchmark_giab.sh` (RTG vcfeval per confidence tier), `health_check.sh` (progress/cost + budget guard), `RESULTS-HG002.md` (the measured numbers)
 
 **Reliability defaults** (in `gcb.config`)
 - `queueSize=40` concurrency cap · `maxRetries=5` (survives Spot preemption streaks) · `SAREK_SPOT=false` → on-demand VMs
