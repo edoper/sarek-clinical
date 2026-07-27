@@ -10,6 +10,163 @@ consensus VCF to the `candidate-filtering` repo. The heavy computing runs in the
 
 This guide (the WGS path) assumes almost no cloud experience. Read it top to bottom once.
 
+> **New here, setting this up from scratch?** Start at **[Section 0](#0-first-time-setup-starting-from-nothing)**
+> — install, Google Cloud project, bucket, permissions, reference genome. Already using the
+> provisioned `intergenica` setup? Skip straight to [Section 3](#3-how-to-run-it-step-by-step).
+
+---
+
+## 0. First-time setup (starting from nothing)
+
+*Skip this entire section if you are using the already-provisioned setup in Section 2. It is here for
+someone standing up their own copy — roughly 30 minutes plus a large download.*
+
+**You will need:** a Google account with billing enabled, and ~10 GB of local disk for the reference
+genome. Everything below is a one-time cost.
+
+### 0.1 — Clone the repo (anywhere you like)
+
+```bash
+git clone https://github.com/edoper/sarek-clinical.git
+cd sarek-clinical
+```
+
+Paths are derived from where the scripts actually are, so any location works — there is no required
+directory.
+
+### 0.2 — Install the tools
+
+| Tool | Why | Install |
+|---|---|---|
+| **Java 17+** | Nextflow runs on the JVM | `sudo apt install openjdk-21-jdk` (or [SDKMAN](https://sdkman.io)) |
+| **Nextflow** | sends jobs to the cloud | `curl -s https://get.nextflow.io \| bash && sudo mv nextflow /usr/local/bin/` |
+| **gcloud CLI** | talks to Google Cloud | [cloud.google.com/sdk/docs/install](https://cloud.google.com/sdk/docs/install) |
+| **bcftools, htslib, samtools** | the local consensus step | `conda install -c bioconda bcftools htslib samtools` |
+| **python3** | `build_cohort.py` | usually already present |
+
+Docker is **not** needed locally — containers run on the cloud VMs, not your laptop.
+
+If your Java lives somewhere unusual, set `JAVA_HOME` in `site.env` (step 0.4); `env.sh` defaults it
+to `$HOME/jdk21`.
+
+### 0.3 — Create the Google Cloud project, bucket and permissions
+
+Replace `MY-PROJECT` and `MY-BUCKET` throughout. These are the exact roles and APIs Google Batch
+requires — no more, so you are not granting anything broad.
+
+```bash
+# a) project + APIs
+gcloud projects create MY-PROJECT                  # or reuse an existing project
+gcloud config set project MY-PROJECT
+gcloud services enable batch.googleapis.com compute.googleapis.com \
+                       logging.googleapis.com storage.googleapis.com
+#    ...then link a billing account (Console → Billing) — nothing runs without it.
+
+# b) the bucket, in the SAME region you will compute in (avoids egress charges)
+gcloud storage buckets create gs://MY-BUCKET --location=US-CENTRAL1 --uniform-bucket-level-access
+
+# c) let the Batch VMs report status, write logs, and read/write the bucket
+PROJNUM=$(gcloud projects describe MY-PROJECT --format='value(projectNumber)')
+SA="${PROJNUM}-compute@developer.gserviceaccount.com"
+gcloud projects add-iam-policy-binding MY-PROJECT --member="serviceAccount:$SA" --role=roles/batch.agentReporter
+gcloud projects add-iam-policy-binding MY-PROJECT --member="serviceAccount:$SA" --role=roles/logging.logWriter
+gcloud storage buckets add-iam-policy-binding gs://MY-BUCKET --member="serviceAccount:$SA" --role=roles/storage.objectAdmin
+
+# d) let YOUR account submit jobs on that service account's behalf
+#    (skip if you are the project Owner — Owner already covers these)
+gcloud projects add-iam-policy-binding MY-PROJECT --member="user:you@example.com" --role=roles/batch.jobsEditor
+gcloud projects add-iam-policy-binding MY-PROJECT --member="user:you@example.com" --role=roles/iam.serviceAccountUser
+gcloud projects add-iam-policy-binding MY-PROJECT --member="user:you@example.com" --role=roles/logging.viewer
+
+# e) give Nextflow your credentials
+gcloud auth application-default login
+gcloud auth application-default set-quota-project MY-PROJECT
+```
+
+**Raise the CPU quota before your first cohort.** Default `us-central1` `CPUS` and `N2D_CPUS` are 200,
+far too low; raise both to ≥1000 (free — a quota is a ceiling, not a charge). See
+[Section 6b](#6b-running-a-big-cohort-reliably--checklist-hard-won), which also explains the
+`IN_USE_ADDRESSES` limit that caps concurrency before CPUs do.
+
+### 0.4 — Point the repo at your project
+
+Create **`site.env`** next to `site.sh`. It is never committed — this is where your own settings live:
+
+```bash
+# site.env
+SAREK_PROJECT=MY-PROJECT
+SAREK_BUCKET=gs://MY-BUCKET
+SAREK_REGION=us-central1
+CF=$HOME/code/candidate-filtering       # downstream repo (default: beside this one)
+WIN=                                    # WSL only: a Windows folder to copy results to; leave empty otherwise
+```
+
+Then:
+
+```bash
+source ./env.sh
+```
+
+It prints which project and bucket you are pointed at — check that line before your first run. Both
+the shell scripts and the Nextflow configs read these values, so this one file retargets everything.
+(Exporting the variables directly works too, and takes precedence over `site.env`.)
+
+### 0.5 — Get the reference genome
+
+Two copies are needed: one **in your bucket** (the cloud jobs read it) and one **on your laptop**
+(the local consensus step reads it). Both come from Broad's public bucket — free, and the same files
+this pipeline was developed against.
+
+```bash
+BROAD=gs://gcp-public-data--broad-references/hg38/v0
+
+# a) into your bucket (~4.8 GB, server-side copy, takes a few minutes)
+gcloud storage cp \
+  $BROAD/Homo_sapiens_assembly38.fasta \
+  $BROAD/Homo_sapiens_assembly38.fasta.fai \
+  $BROAD/Homo_sapiens_assembly38.dict \
+  $BROAD/Homo_sapiens_assembly38.dbsnp138.vcf.gz \
+  $BROAD/Homo_sapiens_assembly38.dbsnp138.vcf.gz.tbi \
+  gs://MY-BUCKET/refs/GATK.GRCh38/
+
+# b) onto your laptop for consensus.sh (~3.3 GB + index)
+mkdir -p refs
+gcloud storage cp $BROAD/Homo_sapiens_assembly38.fasta     refs/
+gcloud storage cp $BROAD/Homo_sapiens_assembly38.fasta.fai refs/
+```
+
+> **It must be the full GATK GRCh38, with ALT and decoy contigs — not a GENCODE "primary assembly".**
+> `bcftools norm` fails on any call landing on an ALT contig, and exome targets do include them. This
+> is the single most common way to break the consensus step.
+
+### 0.6 — Get `candidate-filtering` (the downstream half)
+
+This repo stops at a consensus VCF. Turning that into a ranked candidate list is a separate repo:
+
+```bash
+git clone https://github.com/edoper/candidate-filtering.git
+```
+
+Clone it **beside** `sarek-clinical` and it is found automatically; otherwise set `CF` in `site.env`.
+It has its own prerequisites (Ensembl VEP plus its cache and plugins) — see its README. You can run
+everything in this guide without it, and only need it for Section 5's hand-off.
+
+### 0.7 — Check it works
+
+```bash
+./test/test_consensus.sh     # ~4s, synthetic data, no cloud, no cost
+```
+
+`ALL TESTS PASSED` means the local half (bcftools, htslib, the reference logic) is sound. For the
+cloud half, the cheapest real check is the smoke profile, which runs Sarek's own tiny built-in test
+dataset on Batch for a few cents:
+
+```bash
+nextflow run nf-core/sarek -r 3.8.1 -profile test,docker -c gcb-smoke.config
+```
+
+If that finishes, your project, bucket, permissions and quota are all correct — go to Section 3.
+
 ---
 
 ## 1. The mental model (read this first)
@@ -20,7 +177,7 @@ Think of it like ordering food delivery:
 |---|---|
 | You, on your phone | **Your laptop** — only gives orders, does no cooking |
 | The restaurant kitchen | **Google Cloud** — rents powerful computers that do the actual work |
-| The fridge where ingredients live | **The bucket** (`gs://intergenica-sarek-clinical`) — cloud storage for your files |
+| The fridge where ingredients live | **The bucket** (`$SAREK_BUCKET`) — cloud storage for your files |
 | The recipe | **Sarek** — the standard, published analysis workflow |
 | The waiter taking your order to the kitchen | **Nextflow** — the program on your laptop that sends jobs to the cloud |
 
@@ -29,40 +186,28 @@ computers, runs the analysis, writes the results into the bucket, and shuts the
 computers down automatically. You only pay while they run.
 
 **Three names you'll see a lot:**
-- **Bucket** = a cloud folder. Paths start with `gs://`. Ours is `gs://intergenica-sarek-clinical`.
+- **Bucket** = a cloud folder. Paths start with `gs://`. This deployment's is `gs://intergenica-sarek-clinical`; the commands below use `$SAREK_BUCKET` so they work whichever one is yours.
 - **Google Batch** = the service that rents computers on demand and turns them off when done.
 - **Spot** = cheap "leftover" computers (~70–90% off). They can occasionally be taken back
   mid-job; the pipeline just automatically retries, so you save money safely.
 
 ---
 
-## 2. What's already set up (you don't need to redo this)
+## 2. What's already set up
 
-- **Google project:** `intergenica`  **Billing:** your "Computacion-nube" account
+If you are working on **this** deployment, all of the below already exists and you can skip to
+Section 3:
+
+- **Google project:** `intergenica`  **Billing:** the "Computacion-nube" account
 - **Bucket:** `gs://intergenica-sarek-clinical` with three folders:
   - `fastq/` → where you put input files
   - `work/` → scratch space the pipeline uses while running (delete it afterwards)
   - `results/` → your output (variants + quality reports)
-- **Your laptop (WSL):** Java + Nextflow installed; settings file `gcb.config` ready.
+- **The laptop (WSL):** Java + Nextflow installed; settings file `gcb.config` ready.
 
-### Using this pipeline in **your own** Google project
-
-Those are just this deployment's defaults — nothing in the repo is tied to one machine or person.
-Create a file called `site.env` next to `site.sh` with your own values and everything (scripts *and*
-Nextflow configs) follows it:
-
-```bash
-# site.env — never committed; this is where your own settings belong
-SAREK_PROJECT=my-gcp-project
-SAREK_BUCKET=gs://my-bucket
-SAREK_REGION=us-central1
-CF=$HOME/code/candidate-filtering       # the downstream repo (default: beside this one)
-WIN=/mnt/c/Users/me/Documents           # WSL only — leave unset on Linux/macOS
-```
-
-Then `source env.sh` as usual; it prints which project and bucket you are pointed at. You can also
-just `export` those variables instead. The repo can live in any folder — paths are derived from where
-the scripts actually are, not from a fixed home directory.
+**Setting this up somewhere else for the first time? → [Section 0](#0-first-time-setup-starting-from-nothing).**
+Those names above are only this deployment's defaults; nothing in the repo is tied to one machine,
+one person, or one Google project.
 
 ---
 
@@ -70,20 +215,20 @@ the scripts actually are, not from a fixed home directory.
 
 ### Step 0 — open the toolbox (every time you start a terminal)
 ```bash
-source ~/sarek-clinical/env.sh
+source ./env.sh          # from the repo directory (or use its full path)
 ```
-*Why:* loads Java + Nextflow so the commands below work.
+*Why:* loads Java + Nextflow **and** your project/bucket settings, so the commands below work.
 
 ### Step 1 — log in to Google (only the very first time)
 ```bash
 gcloud auth application-default login
-gcloud auth application-default set-quota-project intergenica
+gcloud auth application-default set-quota-project "$SAREK_PROJECT"
 ```
 *Why:* gives Nextflow permission to rent cloud computers on your behalf. A browser opens; pick your Google account.
 
 ### Step 2 — upload your FASTQ files to the bucket
 ```bash
-gcloud storage cp *_R1.fastq.gz *_R2.fastq.gz gs://intergenica-sarek-clinical/fastq/
+gcloud storage cp *_R1.fastq.gz *_R2.fastq.gz "$SAREK_BUCKET/fastq/"
 ```
 *Why:* the cloud computers read from the bucket, not from your laptop.
 
@@ -93,10 +238,10 @@ Columns: `patient,sample,lane,fastq_1,fastq_2`. One row per pair of FASTQ files.
 
 ### Step 4 — run the pipeline
 ```bash
-cd ~/sarek-clinical
+cd /path/to/sarek-clinical
 nextflow run nf-core/sarek -r 3.8.1 -profile docker -c gcb.config \
   --input  samplesheet.csv \
-  --outdir gs://intergenica-sarek-clinical/results/run01 \
+  --outdir "$SAREK_BUCKET/results/run01" \
   --genome GATK.GRCh38 \
   --tools  deepvariant,strelka,freebayes,haplotypecaller
 ```
@@ -108,8 +253,8 @@ keep the terminal open (or use `-bg` to run in the background). If it stops, jus
 **Watch progress *and* live cost** (BGE cohort arm) without paying anything to look —
 the monitors only *list* the bucket/Batch jobs (no compute, no egress):
 ```bash
-watch -n 30 ~/sarek-clinical/bge_dashboard.sh          # progress bars + Spot cost/budget bar + projected total
-BUDGET=30 watch -n 30 ~/sarek-clinical/bge_dashboard.sh # set your own budget ceiling for the bar
+watch -n 30 ./bge_dashboard.sh          # progress bars + Spot cost/budget bar + projected total
+BUDGET=30 watch -n 30 ./bge_dashboard.sh # set your own budget ceiling for the bar
 ```
 The cost bar reconstructs accrued Spot spend from the Batch job records and shows it
 against a budget with a projected final cost — so a run can never quietly run past what
@@ -117,15 +262,15 @@ you expected. (`bge_cost.sh` is the cost bar alone; `bge_progress.sh` /
 `bge_filter_progress.sh` are the calling and VEP/filter progress bars.)
 
 ### Step 5 — get your results
-Results land in `gs://intergenica-sarek-clinical/results/run01/`. Download the variant
+Results land in `$SAREK_BUCKET/results/run01/`. Download the variant
 files (VCF) and the quality report (MultiQC) when ready:
 ```bash
-gcloud storage cp -r gs://intergenica-sarek-clinical/results/run01 ./run01-results
+gcloud storage cp -r "$SAREK_BUCKET/results/run01" ./run01-results
 ```
 
 ### Step 6 — clean up to stop paying for storage
 ```bash
-gcloud storage rm -r gs://intergenica-sarek-clinical/work
+gcloud storage rm -r "$SAREK_BUCKET/work"
 ```
 *Why:* `work/` is large scratch space. Deleting it after you have results saves storage cost.
 Keep `results/`.
@@ -189,9 +334,9 @@ strict to be *afterwards* (see below). This keeps the decision visible and audit
 
 ### How to run it
 ```bash
-source ~/sarek-clinical/env.sh        # puts tools on PATH (if you installed them there)
+source ./env.sh                       # puts tools on PATH (if you installed them there)
 
-~/sarek-clinical/consensus.sh \
+./consensus.sh \
   -r /path/to/GATK.GRCh38.fasta \
   -d  results/variant_calling/deepvariant/SAMPLE/SAMPLE.deepvariant.vcf.gz \
   -o  results/consensus/SAMPLE \
@@ -392,6 +537,7 @@ or names exactly what broke.
 ## Files in this repo
 
 **Shared core**
+- `LICENSE` — MIT (with a note that clinical use requires validation first)
 - `site.sh` — one place for project/bucket/local paths (`SAREK_*`, `CF`, `WIN`); override in an untracked `site.env` (Section 2)
 - `consensus.sh` — union consensus: all DeepVariant calls + variants ≥2 other callers agree on (genotype borrowed from Strelka2/HaplotypeCaller), tagged with `CALLERS`/`NCALLERS`/`CONF`/`GT_SOURCE` (Section 5)
 - `env.sh` — sources `site.sh`, then loads Java + Nextflow into your terminal (and sets `NXF_SYNTAX_PARSER=v1`, required for sarek 3.8.1 on Nextflow 26.x)

@@ -74,10 +74,10 @@ genome is properly used by **imputation (GLIMPSE, arm 2)** — not by widening t
 
 ---
 
-> **Another project?** The `gs://intergenica-sarek-clinical` paths below are this deployment's
-> defaults. Put your own `SAREK_PROJECT` / `SAREK_BUCKET` in an untracked `site.env` (see
-> [README §2](README.md#2-whats-already-set-up-you-dont-need-to-redo-this)) and every command here
-> follows them unchanged.
+> **Setting up your own copy?** Do [README §0](README.md#0-first-time-setup-starting-from-nothing)
+> first (install, project, bucket, permissions, reference). The `gs://intergenica-sarek-clinical`
+> paths below are just this deployment's defaults — put your own `SAREK_PROJECT` / `SAREK_BUCKET` in
+> an untracked `site.env` and every command here follows them unchanged.
 
 ## Inputs you must provide
 

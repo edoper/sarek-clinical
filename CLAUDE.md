@@ -84,6 +84,11 @@ which IDs, what was found) in a per-run note under `$WIN`, never in tracked docs
 
 ## Cloud environment (provisioned — do not re-scaffold; portable via site.sh)
 
+**README §0 is the from-scratch path** (install, project/bucket/IAM, reference staging,
+candidate-filtering) — send a new deployment there rather than reconstructing setup ad hoc. The IAM
+roles and APIs in it are the verified-minimal set (cross-checked against Google's Batch docs and this
+project's actual IAM policy), so do not broaden them casually.
+
 **Nothing is hardcoded to one machine or person.** `site.sh` (sourced by `env.sh` and by every
 script) defines `SAREK_REPO` (derived from the file's own location, so any checkout path works),
 `SAREK_PROJECT` / `SAREK_REGION` / `SAREK_BUCKET`, `CF` (candidate-filtering, default a sibling
