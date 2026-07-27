@@ -18,9 +18,20 @@ VEP="$CF/vep_annotate.sh"
 mkdir -p "$WD"
 
 # Isolated workdir needs the code + reference config (filtering_r.pl reads them from cwd).
-for f in filtering_r.pl parse_pangolin.pl mane-plus-clinical-names.txt g4e-2025.txt typevar.txt acmg_sf_v3.2.txt; do
-    ln -sf "$CF/$f" "$WD/$f"
+# Link whatever reference files candidate-filtering currently ships, rather than a fixed
+# list: the panel is versioned (g4e-2025 -> g4e-2026 -> ...) and new tables get added
+# (gnomad-mis-constraint.txt drives ACMG PP2). A hardcoded list silently degrades — a
+# dangling panel link, or a missing table that just switches a criterion off.
+for f in filtering_r.pl parse_pangolin.pl site.sh; do
+    [ -e "$CF/$f" ] && ln -sf "$CF/$f" "$WD/$f"
 done
+for f in "$CF"/*.txt; do
+    [ -e "$f" ] && ln -sf "$f" "$WD/$(basename "$f")"
+done
+[ -e "$WD/filtering_r.pl" ] || { echo "ERROR: filtering_r.pl not found in $CF"; exit 1; }
+ls "$WD"/g4e-*.txt >/dev/null 2>&1 || echo "  WARN: no g4e-*.txt panel found in $CF"
+# Drop any dangling links left by an earlier run against a different panel version.
+find "$WD" -maxdepth 1 -xtype l -delete 2>/dev/null || true
 
 mapfile -t VCFS < <(ls "$CONS_DIR"/*.consensus.vcf.gz 2>/dev/null)
 total=${#VCFS[@]}
