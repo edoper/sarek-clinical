@@ -442,8 +442,10 @@ This is where the project's downstream **candidate-filtering** step takes over.
   ~$30–60/month in storage — several times the compute that produced it.
 - **Validation status — DONE (2026-07-27):** the pipeline has been run against the GIAB **HG002**
   reference genome and scored with RTG `vcfeval` against the **GIAB v4.2.1** truth set.
-  **Genome-wide F1 = 0.9948** (SNV 0.9949, INDEL 0.9941; precision 0.9959, recall 0.9936) inside
-  GIAB high-confidence regions, for the default union consensus. Full numbers, per-tier comparison
+  **Genome-wide F1 = 0.9948** (SNV 0.9949, INDEL 0.9941) inside GIAB high-confidence regions for the
+  default union consensus — and **0.9959** (SNV 0.9961, INDEL 0.9946) for the DeepVariant backbone
+  alone. The ≥2-caller rescue arm was measured as **net-negative** (8.7 false positives per true
+  variant recovered); see the results file before relying on it. Full numbers, per-tier comparison
   and limitations: **[validation/RESULTS-HG002.md](validation/RESULTS-HG002.md)**; how to re-run:
   [validation/README.md](validation/README.md). The validation cost **$4.68**.
   This measures the *variant-calling* pipeline only, inside high-confidence regions, for SNVs and

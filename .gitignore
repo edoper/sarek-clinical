@@ -53,6 +53,7 @@
 !validation/benchmark_giab.sh
 !validation/health_check.sh
 !validation/RESULTS-HG002.md
+!validation/split_metrics.sh
 
 # Explicitly NEVER tracked (covered by "*", here as documentation):
 #   samplesheet.csv  families.tsv             <- real inputs (patient IDs / gs:// CRAM paths)

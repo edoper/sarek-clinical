@@ -29,7 +29,8 @@ consensus), inside GIAB high-confidence regions.
 
 | tier | precision | recall | F1 | FP | FN |
 |---|---|---|---|---|---|
-| **union (clinical default)** | 0.9959 | **0.9936** | **0.9948** | 16,043 | 24,796 |
+| **DeepVariant alone (backbone only)** | **0.9984** | 0.9933 | **0.9959** | **6,225** | 25,919 |
+| union (clinical default) | 0.9959 | **0.9936** | 0.9948 | 16,043 | 24,796 |
 | `NCALLERS>=2` | 0.9961 | 0.9924 | 0.9942 | 15,260 | 29,609 |
 | `CONF=HIGH` (≥3 callers) | **0.9982** | 0.9882 | 0.9932 | 7,022 | 45,920 |
 
@@ -37,7 +38,9 @@ consensus), inside GIAB high-confidence regions.
 
 | tier | class | TP | FP | FN | precision | recall | F1 |
 |---|---|---|---|---|---|---|---|
-| union | SNV | 3,345,197 | 13,278 | 21,177 | 0.9960 | 0.9937 | **0.9949** |
+| **DeepVariant alone** | SNV | 3,344,578 | 4,586 | 21,796 | 0.9986 | 0.9935 | **0.9961** |
+| **DeepVariant alone** | INDEL | 521,222 | 1,612 | 4,175 | 0.9971 | 0.9921 | **0.9946** |
+| union | SNV | 3,345,197 | 13,278 | 21,177 | 0.9960 | 0.9937 | 0.9949 |
 | union | INDEL | 521,739 | 2,723 | 3,658 | 0.9951 | 0.9930 | **0.9941** |
 | `NCALLERS>=2` | SNV | 3,341,800 | 12,623 | 24,574 | 0.9962 | 0.9927 | 0.9945 |
 | `NCALLERS>=2` | INDEL | 520,289 | 2,628 | 5,108 | 0.9953 | 0.9903 | 0.9928 |
@@ -56,10 +59,22 @@ consensus), inside GIAB high-confidence regions.
 
 ## What this says about the consensus design
 
-**The union — the pipeline's clinical default — has the best F1 of the three tiers, in both variant
-classes.** That is the design decision validated: `consensus.sh` keeps every DeepVariant call plus
-≥2-caller rescues and defers strictness downstream, and the measurement says that deferral is not
-costing accuracy.
+> **CORRECTION (2026-07-27).** An earlier version of this file claimed the union tier had the best
+> F1 and that "the rescue arm earns its place". That was wrong. It compared the union only against
+> *stricter* tiers and never against the obvious baseline — DeepVariant on its own. Scoring that
+> baseline reverses the conclusion, and the corrected finding is below.
+
+**DeepVariant alone outperforms the union consensus**, in both variant classes:
+
+| | SNV F1 | INDEL F1 | FP | FN |
+|---|---|---|---|---|
+| DeepVariant alone | **0.9961** | **0.9946** | **6,225** | 25,919 |
+| Union (+ ≥2-caller rescue) | 0.9949 | 0.9941 | 16,043 | 24,796 |
+
+**The ≥2-caller rescue arm is net-negative on this benchmark.** It recovered **1,123** true
+variants that DeepVariant missed, and introduced **9,818** false positives doing so — a ratio of
+**8.7 false positives for every true variant recovered**. Precision falls 0.9984 → 0.9959 to buy a
+recall gain of 0.0003.
 
 **Tightening buys precision at a disproportionate cost in recall.** Going from the union to
 `CONF=HIGH` removes 9,021 false positives (16,043 → 7,022, −56%) but adds 21,124 false negatives
@@ -73,9 +88,22 @@ misses 3.5× as many indels. Cross-caller agreement is weakest exactly where cal
 disagree on indel representation, so requiring three callers discards real indels. **Do not use
 `CONF=HIGH` for indel-sensitive questions.**
 
-**The rescue arm earns its place.** 117,075 variants (2.3% of the consensus) came from the ≥2-caller
-rescue rather than DeepVariant. The union's recall exceeds the `NCALLERS>=2` tier's (0.9936 vs
-0.9924) while its precision is essentially identical, so those rescues are net-positive.
+**What to do about the rescue arm.** It is not obviously worth keeping as-is. Options, in order of
+how much work they are:
+
+1. **Report `GT_SOURCE != deepvariant` rows as a separate, lower-confidence tier** rather than mixing
+   them into the primary list. Costs nothing, keeps the sensitivity, moves the false positives out of
+   the main review burden.
+2. **Tighten the rescue** — require the rescued variant to pass a quality floor (depth, GQ, allele
+   balance) rather than caller agreement alone. The 8.7:1 ratio suggests most rescues are
+   low-quality sites where two weaker callers agree *because* they share a failure mode.
+3. **Drop it** and use the DeepVariant backbone alone, accepting 1,123 more missed variants
+   genome-wide (~0.03% of true variants) for 9,818 fewer false ones.
+
+Caveat before acting: this is measured **genome-wide on one sample**. In a panel/exome context the
+absolute numbers are ~40× smaller, and the 1,123 recovered variants are not randomly distributed —
+if any fall in clinically relevant genes the trade looks different. Re-measure inside your actual
+panel before changing the default.
 
 ## Limitations — read before citing
 
