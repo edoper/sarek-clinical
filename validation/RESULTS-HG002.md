@@ -47,15 +47,39 @@ consensus), inside GIAB high-confidence regions.
 | `CONF=HIGH` | SNV | 3,333,022 | 3,942 | 33,352 | 0.9988 | 0.9901 | 0.9944 |
 | `CONF=HIGH` | INDEL | 512,589 | 3,080 | 12,808 | 0.9944 | 0.9756 | 0.9849 |
 
-## Exome-restricted (Agilent SureSelect V6 capture BED ∩ GIAB high-confidence)
+## Exome-restricted (Agilent SureSelect V6 padded capture BED ∩ GIAB high-confidence)
 
-179,987 intersected regions.
+179,987 intersected regions, 97,631 true variants.
 
-| class | TP | FP | FN | precision | recall | F1 |
-|---|---|---|---|---|---|---|
-| SNV | 86,551 | 824 | 1,080 | 0.9906 | 0.9877 | 0.9891 |
-| INDEL | 10,563 | 66 | 103 | 0.9941 | 0.9903 | 0.9922 |
-| combined | 97,092 | 890 | 1,181 | 0.9910 | 0.9880 | 0.9895 |
+| tier | class | TP | FP | FN | precision | recall | **F1** |
+|---|---|---|---|---|---|---|---|
+| union | SNV | 86,551 | 824 | 1,080 | 0.9906 | 0.9877 | **0.9891** |
+| union | INDEL | 10,563 | 66 | 103 | 0.9941 | 0.9903 | **0.9922** |
+| union | combined | 97,092 | 890 | 1,181 | 0.9910 | 0.9880 | **0.9895** |
+| DeepVariant alone | SNV | 86,511 | 220 | 1,120 | 0.9975 | 0.9872 | **0.9923** |
+| DeepVariant alone | INDEL | 10,549 | 30 | 117 | 0.9973 | 0.9890 | **0.9931** |
+| DeepVariant alone | combined | 97,060 | 250 | 1,237 | 0.9974 | 0.9874 | **0.9924** |
+
+## Accuracy varies more by REGION than by tier
+
+Same calls, three regions — this is the single most useful table here:
+
+| region | size | true variants | union F1 | DeepVariant-alone F1 |
+|---|---|---|---|---|
+| **g4e panel** (exons ±20 bp, 1,066 genes) | 5.67 Mb | 4,111 | **0.9977** | **0.9981** |
+| genome-wide (GIAB high-confidence) | ~2.5 Gb | 3,890,524 | 0.9948 | 0.9959 |
+| **exome capture** (SureSelect V6 padded) | ~100 Mb | 97,631 | **0.9895** | **0.9924** |
+
+**The padded exome capture region is the pipeline's *worst* territory — worse than the genome as a
+whole** — while the curated gene panel is its best. A single genome-wide F1 hides a ~0.008 spread.
+Plausible reason: a padded capture BED deliberately includes flanking, GC-rich promoter and first-exon
+sequence, which is harder to call than average genome; the panel is 1,066 well-characterised,
+mostly single-copy disease genes.
+
+**The rescue arm's cost tracks region breadth**: negligible in the panel (0 TP gained, 3 FP added),
+11.9 FP per TP in the padded exome (+54 TP, +640 FP), 8.7 FP per TP genome-wide. It is worth keeping
+where you report from a tight panel, and worth reconsidering if you ever report across a broad
+capture region.
 
 ## Restricted to the g4e epilepsy panel — the territory that actually matters
 
