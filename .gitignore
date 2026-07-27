@@ -17,6 +17,7 @@
 !consensus.sh
 !env.sh
 !site.sh
+!qc_gate.sh
 
 # WGS-from-FASTQ entry point
 !gcb.config
@@ -53,6 +54,9 @@
 !validation/benchmark_giab.sh
 !validation/health_check.sh
 !validation/RESULTS-HG002.md
+!validation/RESULTS-HG002-EXOME.md
+!validation/SOP.md
+!validation/run_giab_exome.sh
 !validation/split_metrics.sh
 
 # Explicitly NEVER tracked (covered by "*", here as documentation):

@@ -10,6 +10,15 @@ come local. There is no build step — this is a collection of Bash/Python orche
 Nextflow config, driven from WSL. `README.md` (WGS) and `BGE.md` (BGE exome) are the
 plain-language user guides; read them for the end-to-end story before changing behavior.
 
+**Per-sample QC gate — `./qc_gate.sh <sample>.consensus.vcf.gz --sex M|F`.** Run it on EVERY
+clinical sample before any candidate list is read. Exit 1 = do not report. It catches the failure
+modes that variant-level flags cannot: contamination (skewed-AB het fraction, het/hom), sample swap
+(chrX het rate + chrY calls vs expected sex), failed capture (variant count, mean depth) and a
+noise-dominated call set (Ti/Tv). Thresholds are conservative defaults — a lab must set its own and
+record them in `validation/SOP.md` §5.2. Verified against negative controls (wrong sex, truncated
+call set, randomised ALTs all FAIL). **A validated pipeline still produces garbage from a bad
+sample; this is the only thing standing between that and a report.**
+
 **One test suite exists and it covers the only logic that is ours:** `./test/test_consensus.sh`
 (synthetic data, no cloud, no patient data, ~4s). It pins the consensus rule (backbone + rescue +
 which sites get dropped) and the crash-safety invariants below. **Run it after touching
@@ -81,6 +90,16 @@ which IDs, what was found) in a per-run note under `$WIN`, never in tracked docs
   drvfs append-caching hides live progress from the Windows side (see the WSL gotcha below).
 - **Watch for placeholder samplesheets.** A committed `samplesheet-*.csv` example may hold `GS_CRAM_PATH_*`
   placeholders — never feed one to a real run.
+
+## Validation
+
+`validation/` holds the accuracy evidence and how to reproduce it: `run_giab.sh` (WGS),
+`run_giab_exome.sh` (exome — the arm actually delivered clinically), `benchmark_giab.sh`,
+`SOP.md` (draft procedure with acceptance criteria left for the lab to set), and `RESULTS-*.md`.
+**Key result to remember: accuracy varies more by REGION than by confidence tier** — g4e panel
+F1 0.9977, genome-wide 0.9948, padded exome capture 0.9895. Quote the number for the region you
+report from. The ≥2-caller rescue arm is net-negative genome-wide (8.7 FP per TP) but neutral
+inside the panel, so the shipped default needs no change.
 
 ## Cloud environment (provisioned — do not re-scaffold; portable via site.sh)
 
