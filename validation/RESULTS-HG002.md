@@ -160,6 +160,18 @@ absolute numbers are ~40× smaller, and the 1,123 recovered variants are not ran
 if any fall in clinically relevant genes the trade looks different. Re-measure inside your actual
 panel before changing the default.
 
+## How to describe the consensus design in a methods section
+
+The four-caller consensus earns its place through **transparency and auditability, not accuracy**.
+DeepVariant alone scored equal or better in every comparison made here (genome-wide, WGS panel,
+exome panel, and exome panel indels). What the consensus adds is the `CALLERS` / `NCALLERS` /
+`CONF` / `GT_SOURCE` annotation — the ability to state how many independent callers supported a
+reported variant, and to re-tier retrospectively without re-calling.
+
+Accurate phrasing: *"four callers for cross-caller confidence annotation and auditability, with
+DeepVariant as the accuracy backbone."* Avoid wording that implies the consensus is more accurate
+than its backbone — this data does not support that.
+
 ## Limitations — read before citing
 
 - Scores apply **only inside GIAB's high-confidence regions**, which exclude segmental duplications

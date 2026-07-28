@@ -76,6 +76,26 @@ here (0.9315 vs 0.9198), because the rescue arm adds 8 indel false positives to 
   advises for indels specifically until a laboratory has extensive validation showing it is safe to
   drop.
 
+## Scope of the phrase "GIAB validated"
+
+Precisely: **two of three arms are validated.**
+
+| arm | validated? | evidence |
+|---|---|---|
+| WGS from FASTQ | **yes** | `RESULTS-HG002.md` |
+| Exome from FASTQ (Agilent-style) | **yes**, bounded by the V5/V6 kit mismatch | this file |
+| **BGE exome from CRAM** | **NO** | — |
+
+BGE is the main production arm and it is **not** covered. GIAB publishes no Twist/BGE-captured
+reference sample (only the Agilent V5 exome used here and an Ion Torrent exome), so no public data
+exists to validate it directly. The direction of the exome finding — capture data calls indels
+worse than PCR-free WGS — should transfer to BGE; the magnitude probably does not, and BGE likely
+performs better (modern Twist chemistry, no kit mismatch, Broad-aligned CRAM input).
+
+**The fix is cheap and decisive: include a GIAB sample as a control in the next BGE batch.** One
+sample slot gives an exactly-matched validation through the identical Terra→CRAM→sarek path, for
+about $0.22 of compute on a batch you are running anyway.
+
 ## Reproducing
 
 `validation/run_giab_exome.sh` — streams the reference exome BAM from GIAB, converts to FASTQ,
