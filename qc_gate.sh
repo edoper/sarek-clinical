@@ -104,19 +104,41 @@ awk -v v="$SKEWFRAC" -v hi="$QC_MAX_SKEWED_HET_FRAC" 'BEGIN{exit !(v+0 > hi+0)}'
 awk -v v="$MEANDP" -v lo="$QC_MIN_MEAN_DP" 'BEGIN{exit !(v+0 < lo+0)}' && add_fail "mean depth ${MEANDP}x < ${QC_MIN_MEAN_DP}x at called sites"
 
 # ── 5. sex concordance ────────────────────────────────────────────────────────────────
-XHET=$(bcftools query -r chrX,X -f '[%GT\n]' "$VCF" 2>/dev/null | sed 's/|/\//' | awk '
-   /^0\/1$|^1\/0$/{h++} /^1\/1$|^0\/1$|^1\/0$|^0\/0$/{t++} END{printf "%.3f", (t>0)? h/t : -1}')
+# TWO assay-independence fixes, both learned from failing a known-male EXOME (2026-07-28):
+#
+#   (a) EXCLUDE THE PSEUDOAUTOSOMAL REGIONS. PAR1/PAR2 are present on both X and Y, so a
+#       male is genuinely DIPLOID there and heterozygous calls are expected. Including them
+#       inflated a male exome's chrX het rate from 0.090 to 0.169 and pushed it into the
+#       "female" band.
+#   (b) chrY CALL COUNT IS NOT COMPARABLE ACROSS ASSAYS. The same HG002 gave 11,375 chrY
+#       calls by WGS and 57 by exome — a ~200x difference, because capture kits barely
+#       target chrY. An absolute chrY threshold silently means "WGS only". chrY is therefore
+#       NORMALISED per 1,000 autosomal calls and used only to CORROBORATE.
+#
+# Primary signal = chrX non-PAR heterozygosity, which is assay-independent: a male has one
+# X and is near-hemizygous there; a female is heterozygous at roughly half her variant sites.
+PAR1_END=2781479; PAR2_START=155701383            # GRCh38
+XHET=$(bcftools query -r "chrX:$((PAR1_END+1))-$((PAR2_START-1)),X:$((PAR1_END+1))-$((PAR2_START-1))" \
+        -f '[%GT\n]' "$VCF" 2>/dev/null | sed 's/|/\//' | awk '
+   /^0\/1$|^1\/0$/{h++} /^1\/1$|^0\/1$|^1\/0$/{t++} END{printf "%.3f", (t>0)? h/t : -1}')
 YN=$(bcftools view -H -r chrY,Y "$VCF" 2>/dev/null | wc -l)
+AUTO=$(bcftools view -H -r chr1,chr2,chr3,1,2,3 "$VCF" 2>/dev/null | wc -l)
+YNORM=$(awk -v y="$YN" -v a="$AUTO" 'BEGIN{printf "%.2f", (a>0)? y*1000/a : 0}')
+
+: "${QC_XHET_MALE_MAX:=0.15}"    # non-PAR chrX het rate at/below this => male
+: "${QC_XHET_FEMALE_MIN:=0.30}"  # at/above this => female; between the two => undetermined
 OBSERVED_SEX="undetermined"
-if   awk -v x="$XHET" 'BEGIN{exit !(x>=0 && x<0.10)}' && (( YN > 100 )); then OBSERVED_SEX="M"
-elif awk -v x="$XHET" 'BEGIN{exit !(x>=0.15)}'        && (( YN < 500 )); then OBSERVED_SEX="F"
+if   awk -v x="$XHET" -v m="$QC_XHET_MALE_MAX"   'BEGIN{exit !(x>=0 && x<=m)}'; then OBSERVED_SEX="M"
+elif awk -v x="$XHET" -v f="$QC_XHET_FEMALE_MIN" 'BEGIN{exit !(x>=f)}';         then OBSERVED_SEX="F"
 fi
-notes+=("chrX het-rate $XHET, chrY calls $YN -> observed sex $OBSERVED_SEX")
+notes+=("chrX non-PAR het-rate $XHET -> sex $OBSERVED_SEX (chrY $YN calls = $YNORM per 1000 autosomal, corroborating only)")
 if [ -n "$EXPECTED_SEX" ]; then
     if [ "$OBSERVED_SEX" = "undetermined" ]; then
-        add_warn "sex could not be determined (expected $EXPECTED_SEX) — check coverage on X/Y"
+        add_warn "sex indeterminate (chrX non-PAR het $XHET falls between $QC_XHET_MALE_MAX and $QC_XHET_FEMALE_MIN; expected $EXPECTED_SEX)"
     elif [ "$OBSERVED_SEX" != "$EXPECTED_SEX" ]; then
         add_fail "SEX MISMATCH: expected $EXPECTED_SEX, observed $OBSERVED_SEX — possible SAMPLE SWAP"
+    elif [ "$OBSERVED_SEX" = "M" ] && awk -v y="$YNORM" 'BEGIN{exit !(y+0 < 0.5)}'; then
+        notes+=("chrY yield is low ($YNORM/1000) — normal for capture kits, which barely target chrY")
     fi
 fi
 

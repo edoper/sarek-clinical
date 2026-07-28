@@ -15,8 +15,14 @@ clinical sample before any candidate list is read. Exit 1 = do not report. It ca
 modes that variant-level flags cannot: contamination (skewed-AB het fraction, het/hom), sample swap
 (chrX het rate + chrY calls vs expected sex), failed capture (variant count, mean depth) and a
 noise-dominated call set (Ti/Tv). Thresholds are conservative defaults — a lab must set its own and
-record them in `validation/SOP.md` §5.2. Verified against negative controls (wrong sex, truncated
-call set, randomised ALTs all FAIL). **A validated pipeline still produces garbage from a bad
+record them in `validation/SOP.md` §5.2. Verified in BOTH directions by `test/test_qc_gate.sh` — it must pass good samples as well as
+fail bad ones, because a gate that fails valid samples trains people to ignore it.
+**Sex calling is assay-independent by construction, and this was learned the hard way:** the
+first version failed a known-male EXOME because (a) it counted pseudoautosomal regions, inflating
+a male's chrX het rate 0.090 → 0.169, and (b) it used an ABSOLUTE chrY call threshold — the same
+HG002 gives 11,375 chrY calls by WGS and 57 by exome (~200×), since capture kits barely target
+chrY. Now: chrX **non-PAR** het rate is primary, chrY is normalised per 1,000 autosomal calls and
+only corroborates. **A validated pipeline still produces garbage from a bad
 sample; this is the only thing standing between that and a report.**
 
 **One test suite exists and it covers the only logic that is ours:** `./test/test_consensus.sh`

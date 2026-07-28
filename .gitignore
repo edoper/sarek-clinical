@@ -44,6 +44,7 @@
 # Tests (synthetic data only — generated at runtime into a temp dir, never committed)
 !test/
 !test/test_consensus.sh
+!test/test_qc_gate.sh
 
 # GIAB validation harness + results (HG002 is a PUBLIC reference sample, not a patient,
 # so its accuracy numbers are publishable — that is the point of a validation).
