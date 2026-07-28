@@ -66,36 +66,84 @@ set is confident.
 **Any change to a row in this table invalidates the current validation and requires §6 to be
 repeated.** This is the change-control rule.
 
-## 5. Acceptance criteria — SET THESE BEFORE RUNNING
+## 5. Acceptance criteria
 
-### 5.1 Analytical validation (§6)
+### 5.0 Define the reportable range FIRST
 
-Measured on the reference sample, **within the reporting region** (the gene panel or capture target
-actually used clinically) intersected with the truth set's high-confidence regions.
+A sensitivity threshold is meaningless without the region it applies to. This pipeline's measured
+accuracy varies **more by region than by any filtering choice**: g4e panel F1 0.9977, genome-wide
+0.9948, padded exome capture 0.9895. State the reportable range, then set thresholds for it.
 
-| Metric | Provisional threshold | Set by lab |
+**Reportable range for this laboratory:** ☐ ______________________________
+*(recommended: the g4e panel — MANE exons ±20 bp of the panel genes — since that is what is
+reported. Anything outside it is explicitly not covered by these criteria.)*
+
+### 5.1 What the statistics allow you to claim
+
+Thresholds cannot be tighter than the confidence interval of the measurement that verifies them.
+95% Wilson intervals on recall from the 2026-07-27 HG002 run:
+
+| region | class | true variants | recall | 95% CI | CI width |
+|---|---|---|---|---|---|
+| g4e panel | SNV | 3,521 | 0.9983 | [0.9963, 0.9992] | 0.29 pp |
+| g4e panel | **INDEL** | **590** | 0.9932 | **[0.9827, 0.9974]** | **1.47 pp** |
+| exome capture | INDEL | 10,666 | 0.9903 | [0.9883, 0.9920] | 0.37 pp |
+| genome-wide | INDEL | 525,397 | 0.9930 | [0.9928, 0.9933] | 0.04 pp |
+
+**The panel contains only 590 true indels.** One panel run therefore cannot distinguish 99.0% from
+99.6% indel sensitivity — the interval spans both. **Setting a 99% indel threshold verified only by
+a panel run would be aspirational, not evidenced.** Two honest ways forward:
+
+1. **Verify on the wide region, confirm on the narrow one.** Establish the numeric threshold using
+   the genome-wide or exome-wide measurement (hundreds of thousands of indels → CI ±0.04 pp), then
+   use the panel run to confirm no region-specific degradation. This is the recommended route.
+2. **Add samples.** GIAB publishes HG001–HG007 with the same truth-set machinery. Pooling indels
+   across samples narrows the panel interval and simultaneously provides the reproducibility
+   evidence §6 requires.
+
+### 5.2 Analytical validation thresholds — two-tier
+
+Two limits, deliberately. A single threshold you fail occasionally creates pressure to rationalise
+failures; a floor plus a target keeps that honest.
+
+| Metric | **Floor** (FAIL — stop clinical use) | **Target** (investigate below) | Measured, panel | Measured, genome-wide |
+|---|---|---|---|---|
+| SNV sensitivity | ☐ *(suggest 99.0%)* | ☐ *(suggest 99.5%)* | 99.83% | 99.37% |
+| SNV precision | ☐ *(suggest 99.0%)* | ☐ *(suggest 99.5%)* | 99.86% | 99.60% |
+| INDEL sensitivity | ☐ *(suggest 98.0%)* | ☐ *(suggest 99.0%)* | 99.32% | 99.30% |
+| INDEL precision | ☐ *(suggest 98.0%)* | ☐ *(suggest 99.0%)* | 99.35% | 99.51% |
+
+Notes for whoever signs this off:
+
+- **The suggested floors are what the current evidence supports**, not the best imaginable numbers.
+  The panel indel CI lower bound is 98.27%, so a 98% floor is verified; a 99% floor is not — yet.
+- **SNV thresholds must be region-aware.** Genome-wide SNV sensitivity is 99.37%, *below* a 99.5%
+  target. If the reportable range is the panel, 99.5% is appropriate; if it is genome-wide, it is
+  not. Do not copy one into the other.
+- **Indels get lower thresholds than SNVs deliberately.** Every published benchmark shows the gap.
+  For context, a 2025 software comparison put GATK-based tools at indel F1 0.89–0.93 and Illumina
+  DRAGEN at 0.9699, against SNV F1 0.98–0.9969; this pipeline measured indel F1 0.9941 genome-wide.
+  A single threshold for both classes is either unachievable for indels or vacuous for SNVs.
+- Published clinical WES/WGS validations commonly claim **>99% sensitivity and specificity** for
+  SNVs and small indels, with the strongest reporting >99.7%/99.8% in high-mapping-quality regions.
+  The suggested targets sit inside that band.
+
+### 5.3 Per-sample QC gate (§7)
+
+| Metric | Suggested | Set by lab |
 |---|---|---|
-| SNV recall | ≥ 0.99 | ☐ |
-| SNV precision | ≥ 0.99 | ☐ |
-| INDEL recall | ≥ 0.95 | ☐ |
-| INDEL precision | ≥ 0.95 | ☐ |
-
-Rationale for the indel thresholds being lower: indel calling is intrinsically harder and every
-published benchmark shows a gap to SNVs. Setting one threshold for both would either be
-unachievable for indels or meaningless for SNVs.
-
-### 5.2 Per-sample QC gate (§7)
-
-| Metric | Provisional threshold | Set by lab |
-|---|---|---|
+| Mean depth over the reportable range | ≥ 50× (exome/panel) | ☐ |
+| Fraction of reportable range at ≥ 20× | ≥ 99% | ☐ |
 | Variant count | within [20,000 – 8,000,000] | ☐ |
 | Ti/Tv | ≥ 1.8 (WGS ~2.0–2.1; exome ~2.8–3.3) | ☐ |
 | het/hom ratio | ≤ 3.0 | ☐ |
-| Skewed-AB het fraction | ≤ 0.15 | ☐ |
-| Mean depth at called sites | ≥ 20× | ☐ |
+| Skewed-AB het fraction (contamination proxy) | ≤ 0.15 | ☐ |
 | Sex concordance | must match the requisition | ☐ |
 
-**A sample failing any criterion in 5.2 must not have its candidate list reported.**
+Coverage figures follow common clinical practice (mean >35× with 99.5% of the reportable range
+above 20×); 50× is suggested here because capture is uneven and the margin costs little.
+
+**A sample failing any criterion must not have its candidate list reported.**
 
 ## 6. Procedure — analytical validation
 
