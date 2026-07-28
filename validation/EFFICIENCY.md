@@ -69,6 +69,42 @@ calling ~26 ways, so that is the ceiling for a single genome. **This pipeline is
 per sample on cohorts than on singletons** — the fixed serial tail is amortised across samples.
 Validating or reprocessing one genome at a time is the expensive way to use it.
 
+## Unclaimed win: the reference is pre-staged but only one config uses it
+
+`gcb-bge-wes.config` points its `fasta` / `fasta_fai` / `dict` / `dbsnp` at
+`$SAREK_BUCKET/refs/GATK.GRCh38/` — same-region, instant. **`gcb.config` does not**, so both
+from-FASTQ arms (WGS and the EPIGEN exome) fall back to igenomes and pull the reference over the
+network from `s3://ngi-igenomes` on every run.
+
+Verified during the exome validation: the bucket **already contains everything needed**, including
+the BWA index the from-FASTQ arms require —
+
+```
+refs/GATK.GRCh38/Homo_sapiens_assembly38.fasta          3.03 GB
+refs/GATK.GRCh38/Homo_sapiens_assembly38.dbsnp138.vcf.gz 1.45 GB
+refs/GATK.GRCh38/BWAIndex/Homo_sapiens_assembly38.fasta.64.{amb,ann,bwt,pac,sa}
+```
+
+…yet the exome run's log shows it staging `Sequence/WholeGenomeFasta/Homo_sapiens_assembly38.fasta`
+and `Sequence/BWAIndex/` from S3 anyway. The cost is wall clock, not dollars — but it is paid again
+on **every Spot preemption retry** of an alignment task, which is exactly when a run already looks
+stalled.
+
+**Suggested fix** (one config change, needs one verification first):
+
+```groovy
+// in gcb.config params { }
+fasta     = "${gcpBucket}/refs/GATK.GRCh38/Homo_sapiens_assembly38.fasta"
+fasta_fai = "${gcpBucket}/refs/GATK.GRCh38/Homo_sapiens_assembly38.fasta.fai"
+dict      = "${gcpBucket}/refs/GATK.GRCh38/Homo_sapiens_assembly38.dict"
+bwa       = "${gcpBucket}/refs/GATK.GRCh38/BWAIndex/"
+```
+
+**Verify before adopting:** confirm the bucket FASTA is byte-identical to the igenomes one
+(`gcloud storage ls -l` both and compare size/checksum). If it differs, alignment differs, and the
+GIAB numbers — which were measured with the igenomes reference — would no longer describe the
+pipeline. This was deliberately NOT applied automatically for that reason.
+
 ## What NOT to change
 
 - **FreeBayes** looks wasteful (11.8% of realtime, 0.9 cores) and is only 1.9% of cost. But it feeds
