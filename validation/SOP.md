@@ -106,12 +106,32 @@ a panel run would be aspirational, not evidenced.** Two honest ways forward:
 Two limits, deliberately. A single threshold you fail occasionally creates pressure to rationalise
 failures; a floor plus a target keeps that honest.
 
-| Metric | **Floor** (FAIL — stop clinical use) | **Target** (investigate below) | Measured, panel | Measured, genome-wide |
+**Thresholds must be set PER ASSAY.** The exome validation (2026-07-28) showed the same pipeline
+achieves very different indel performance on WGS versus a real capture library. A single set of
+numbers covering both would be wrong for one of them.
+
+**WGS arm** (measured on HG002 30× PCR-free, panel region):
+
+| Metric | **Floor** | **Target** | Measured |
+|---|---|---|---|
+| SNV sensitivity | ☐ *(suggest 99.0%)* | ☐ *(suggest 99.5%)* | 99.83% |
+| SNV precision | ☐ *(suggest 99.0%)* | ☐ *(suggest 99.5%)* | 99.86% |
+| INDEL sensitivity | ☐ *(suggest 98.0%)* | ☐ *(suggest 99.0%)* | 99.32% |
+| INDEL precision | ☐ *(suggest 98.0%)* | ☐ *(suggest 99.0%)* | 99.35% |
+
+**EXOME / BGE arm** (measured on a real HG002 capture library, panel ∩ calling intervals):
+
+| Metric | **Floor** | **Target** | Measured | note |
 |---|---|---|---|---|
-| SNV sensitivity | ☐ *(suggest 99.0%)* | ☐ *(suggest 99.5%)* | 99.83% | 99.37% |
-| SNV precision | ☐ *(suggest 99.0%)* | ☐ *(suggest 99.5%)* | 99.86% | 99.60% |
-| INDEL sensitivity | ☐ *(suggest 98.0%)* | ☐ *(suggest 99.0%)* | 99.32% | 99.30% |
-| INDEL precision | ☐ *(suggest 98.0%)* | ☐ *(suggest 99.0%)* | 99.35% | 99.51% |
+| SNV sensitivity | ☐ *(suggest 98.5%)* | ☐ *(suggest 99.0%)* | 99.39% | CI ±0.4 pp |
+| SNV precision | ☐ *(suggest 98.5%)* | ☐ *(suggest 99.0%)* | 99.72% | |
+| INDEL sensitivity | ☐ *(suggest 88.0%)* | ☐ *(suggest 93.0%)* | 92.40% | **CI [87.4, 95.5] — 8 pp wide** |
+| INDEL precision | ☐ *(suggest 88.0%)* | ☐ *(suggest 93.0%)* | 91.57% | |
+
+The exome indel floor is suggested near the **lower confidence bound**, not the point estimate,
+because 171 indels cannot support anything tighter, and because the reference exome used a
+different capture kit (V5 vs V6) which depresses recall for reasons unrelated to the pipeline.
+**Re-measure with a reference exome captured on your own kit before tightening these.**
 
 Notes for whoever signs this off:
 

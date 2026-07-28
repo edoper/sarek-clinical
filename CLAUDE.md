@@ -102,8 +102,12 @@ which IDs, what was found) in a per-run note under `$WIN`, never in tracked docs
 `validation/` holds the accuracy evidence and how to reproduce it: `run_giab.sh` (WGS),
 `run_giab_exome.sh` (exome — the arm actually delivered clinically), `benchmark_giab.sh`,
 `SOP.md` (draft procedure with acceptance criteria left for the lab to set), and `RESULTS-*.md`.
-**Key result to remember: accuracy varies more by REGION than by confidence tier** — g4e panel
-F1 0.9977, genome-wide 0.9948, padded exome capture 0.9895. Quote the number for the region you
+**Two results to remember.** (1) Accuracy varies more by REGION than by confidence tier — g4e panel
+F1 0.9977, genome-wide 0.9948. (2) **The exome arm is materially worse than WGS, and only for
+indels**: on a REAL capture library, same panel genes, SNV F1 0.9955 but INDEL F1 **0.9198**, versus
+0.9934 for WGS reads merely restricted to the panel. Restricting WGS to a BED is NOT a substitute
+for validating the exome — it was optimistic by ~0.07 F1 on indels. Quote
+`RESULTS-HG002-EXOME.md` for the exome/BGE arms, never the WGS exome-restricted row. Quote the number for the region you
 report from. The ≥2-caller rescue arm is net-negative genome-wide (8.7 FP per TP) but neutral
 inside the panel, so the shipped default needs no change.
 

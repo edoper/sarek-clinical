@@ -56,6 +56,7 @@
 !validation/health_check.sh
 !validation/RESULTS-HG002.md
 !validation/RESULTS-HG002-EXOME.md
+!validation/split_metrics.sh
 !validation/SOP.md
 !validation/EFFICIENCY.md
 !validation/orchestrate_exome.sh

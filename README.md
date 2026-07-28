@@ -440,7 +440,7 @@ This is where the project's downstream **candidate-filtering** step takes over.
 - The biggest waste is forgetting to delete the `work/` folder — do Step 6. For WGS this
   dominates: `work/` runs ~200 GB **per genome**, so an 8-genome cohort left behind costs
   ~$30–60/month in storage — several times the compute that produced it.
-- **Validation status — DONE (2026-07-27):** the pipeline has been run against the GIAB **HG002**
+- **Validation status — DONE (WGS 2026-07-27, EXOME 2026-07-28):** the pipeline has been run against the GIAB **HG002**
   reference genome and scored with RTG `vcfeval` against the **GIAB v4.2.1** truth set.
   **Genome-wide F1 = 0.9948** (SNV 0.9949, INDEL 0.9941) inside GIAB high-confidence regions for the
   default union consensus — and **0.9959** (SNV 0.9961, INDEL 0.9946) for the DeepVariant backbone
@@ -449,6 +449,11 @@ This is where the project's downstream **candidate-filtering** step takes over.
   positives across 1,066 genes) — so the default is fine as shipped. See the results file. Full numbers, per-tier comparison
   and limitations: **[validation/RESULTS-HG002.md](validation/RESULTS-HG002.md)**; how to re-run:
   [validation/README.md](validation/README.md). The validation cost **$4.68**.
+  **The exome arm was validated separately and performs worse — quote the right number.** On a real
+  capture library (GIAB HG002 exome), in the same panel genes: SNV F1 **0.9955**, but INDEL F1
+  **0.9198** (vs 0.9934 for WGS reads merely restricted to the panel). Indel sensitivity is the
+  limiting factor for exome/BGE reporting and belongs in report limitations — see
+  **[validation/RESULTS-HG002-EXOME.md](validation/RESULTS-HG002-EXOME.md)**.
   This measures the *variant-calling* pipeline only, inside high-confidence regions, for SNVs and
   small indels — it does not cover structural variants, and it does not validate the downstream
   `candidate-filtering` interpretation step. Local clinical governance still applies before use in
@@ -574,7 +579,7 @@ or names exactly what broke.
 - Monitoring: `bge_cost.sh` (live Spot/on-demand cost vs budget), `bge_dashboard.sh`, `bge_progress.sh` / `bge_filter_progress.sh`
 
 **Validation**
-- `validation/` — GIAB HG002 accuracy validation: `run_giab.sh` (end to end), `benchmark_giab.sh` (RTG vcfeval per confidence tier), `health_check.sh` (progress/cost + budget guard), `RESULTS-HG002.md` (the measured numbers)
+- `validation/` — GIAB HG002 accuracy validation (WGS **and** exome): `run_giab.sh` (end to end), `benchmark_giab.sh` (RTG vcfeval per confidence tier), `health_check.sh` (progress/cost + budget guard), `RESULTS-HG002.md` / `RESULTS-HG002-EXOME.md` (the measured numbers), `SOP.md`, `EFFICIENCY.md`, `../qc_gate.sh` (per-sample gate)
 
 **Reliability defaults** (in `gcb.config`)
 - `queueSize=40` concurrency cap · `maxRetries=5` (survives Spot preemption streaks) · `SAREK_SPOT=false` → on-demand VMs
