@@ -1,0 +1,8 @@
+| tier | class | TP | FP | FN | precision | recall | F1 |
+|---|---|---|---|---|---|---|---|
+| union-exome        | snps  |     82906 |    1357 |    4725 | 0.9839 | 0.9461 | 0.9646 |
+| union-exome        | indels |      9156 |     772 |    1510 | 0.9242 | 0.8584 | 0.8901 |
+| fairpanel-union    | snps  |      1781 |       5 |      11 | 0.9972 | 0.9939 | 0.9955 |
+| fairpanel-union    | indels |       158 |      15 |      13 | 0.9157 | 0.9240 | 0.9198 |
+| fairpanel-dvonly   | snps  |      1781 |       3 |      11 | 0.9983 | 0.9939 | 0.9961 |
+| fairpanel-dvonly   | indels |       155 |       7 |      16 | 0.9581 | 0.9064 | 0.9315 |

@@ -1,0 +1,28 @@
+[2026-07-27T13:56:18Z] consensus.sh start
+[2026-07-27T13:56:18Z] bcftools: bcftools 1.13
+[2026-07-27T13:56:18Z] reference: /home/edo/sarek-clinical/refs/Homo_sapiens_assembly38.fasta   sample: HG002   filter-keep: PASS,.
+[2026-07-27T13:56:18Z] backbone (DeepVariant): /tmp/tmp.MqQDg9M3pm/HG002.deepvariant.vcf.gz
+[2026-07-27T13:56:18Z] normalizing deepvariant ...
+Lines   total/split/realigned/skipped:	4838958/87256/52742/0
+Lines   total/split/realigned/skipped:	4927041/0/0/0
+[2026-07-27T13:56:31Z] normalizing strelka ...
+Lines   total/split/realigned/skipped:	4626713/66727/44595/0
+Lines   total/split/realigned/skipped:	4693440/0/0/0
+[2026-07-27T13:56:48Z] normalizing freebayes ...
+Lines   total/split/realigned/skipped:	4625447/108617/934733/0
+Lines   total/split/realigned/skipped:	4734064/0/0/0
+[2026-07-27T13:57:29Z] normalizing haplotypecaller ...
+Lines   total/split/realigned/skipped:	4964216/87873/42386/0
+Lines   total/split/realigned/skipped:	5052089/0/0/0
+[2026-07-27T13:57:53Z] callers (presence-string order): deepvariant strelka freebayes haplotypecaller
+[2026-07-27T13:58:41Z] isec sites: 5555267
+[2026-07-27T13:59:27Z] backbone (DeepVariant): 4927041 variants
+[2026-07-27T13:59:38Z] rescue via strelka: 46641 variants
+[2026-07-27T13:59:52Z] rescue via haplotypecaller: 70434 variants
+Checking the headers and starting positions of 3 files
+Writing to /tmp/bcftools.58f00K
+Merging 3 temporary files
+Cleaning
+Done
+[2026-07-27T14:00:15Z] FINAL consensus: /home/edo/sarek-clinical/giab-validation/consensus/HG002.consensus.vcf.gz  [5044116 variants total]
+[2026-07-27T14:00:15Z] consensus.sh done

@@ -1,0 +1,10 @@
+| tier | class | TP | FP | FN | precision | recall | F1 |
+|---|---|---|---|---|---|---|---|
+| panel-dvonly       | snps  |      3515 |       4 |       6 | 0.9989 | 0.9983 | 0.9986 |
+| panel-dvonly       | indels |       586 |       2 |       4 | 0.9968 | 0.9932 | 0.9950 |
+| panel-union        | snps  |      3515 |       5 |       6 | 0.9986 | 0.9983 | 0.9984 |
+| panel-union        | indels |       586 |       4 |       4 | 0.9935 | 0.9932 | 0.9934 |
+| panel-ncallers2    | snps  |      3515 |       5 |       6 | 0.9986 | 0.9983 | 0.9984 |
+| panel-ncallers2    | indels |       586 |       3 |       4 | 0.9951 | 0.9932 | 0.9942 |
+| panel-confhigh     | snps  |      3515 |       4 |       6 | 0.9989 | 0.9983 | 0.9986 |
+| panel-confhigh     | indels |       585 |       4 |       5 | 0.9935 | 0.9915 | 0.9925 |

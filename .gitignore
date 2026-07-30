@@ -63,6 +63,24 @@
 !validation/run_giab_exome.sh
 !validation/split_metrics.sh
 
+# Raw vcfeval output behind the RESULTS-*.md tables. These were previously kept only
+# on local disk, so the numbers in the reports had no committed source to check them
+# against. HG002 only — no patient data reaches this directory.
+!validation/metrics/
+!validation/metrics/README.md
+!validation/metrics/REPORT.md
+!validation/metrics/STATUS-EXOME.md
+!validation/metrics/HG002.consensus.log
+!validation/metrics/metrics-genomewide.txt
+!validation/metrics/metrics-panel.txt
+!validation/metrics/metrics-exome.txt
+!validation/metrics/metrics-all-tiers-WGS-PROXY.txt
+!validation/metrics/vcfeval-confhigh.txt
+!validation/metrics/vcfeval-dvonly.txt
+!validation/metrics/vcfeval-ncallers2.txt
+!validation/metrics/vcfeval-union-exome.txt
+!validation/metrics/vcfeval-union-genomewide.txt
+
 # Explicitly NEVER tracked (covered by "*", here as documentation):
 #   samplesheet.csv  families.tsv             <- real inputs (patient IDs / gs:// CRAM paths)
 #   consensus/  *.vcf  *.vcf.gz  *.tbi         <- patient variants

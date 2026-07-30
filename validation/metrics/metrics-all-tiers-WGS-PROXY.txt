@@ -1,0 +1,19 @@
+# PROVENANCE WARNING — read before quoting these numbers.
+#
+# The `union-exome` and `exome-dvonly` rows below are the WGS PROXY: the whole-genome
+# HG002 run restricted to the capture BED, NOT the real exome path. They overstate
+# exome indel performance by roughly 0.07 F1 and were superseded by commit 70ce62b.
+#
+# For the exome/BGE clinical arms use metrics-exome.txt instead, which comes from the
+# real exome run (fairpanel-union indel F1 0.9198, vs 0.9922 claimed below).
+#
+| tier | class | TP | FP | FN | precision | recall | F1 |
+|---|---|---|---|---|---|---|---|
+| union-exome        | snps  |     86551 |     824 |    1080 | 0.9906 | 0.9877 | 0.9891 |
+| union-exome        | indels |     10563 |      66 |     103 | 0.9941 | 0.9903 | 0.9922 |
+| exome-dvonly       | snps  |     86511 |     220 |    1120 | 0.9975 | 0.9872 | 0.9923 |
+| exome-dvonly       | indels |     10549 |      30 |     117 | 0.9973 | 0.9890 | 0.9931 |
+| panel-union        | snps  |      3515 |       5 |       6 | 0.9986 | 0.9983 | 0.9984 |
+| panel-union        | indels |       586 |       4 |       4 | 0.9935 | 0.9932 | 0.9934 |
+| panel-dvonly       | snps  |      3515 |       4 |       6 | 0.9989 | 0.9983 | 0.9986 |
+| panel-dvonly       | indels |       586 |       2 |       4 | 0.9968 | 0.9932 | 0.9950 |
