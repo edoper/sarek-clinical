@@ -45,11 +45,15 @@ by every arm. Its consensus rule is a **union, not a majority filter**:
   by filtering on those tags. `CONF` measures cross-caller *agreement*, not correctness.
 
 Pipeline inside `consensus.sh`: per-caller VCFs are normalized (keep `PASS`, `norm -m -both` split +
-left-align against REF, `--rm-dup exact`), intersected with `bcftools isec -n +1`, then an awk pass
-builds the presence/annotation VCF that drives backbone annotation + rescue. Two subtle invariants are
+left-align against REF, **drop records the sample does not carry** (`GT~"1"`), `--rm-dup exact`), intersected with `bcftools isec -n +1`, then an awk pass
+builds the presence/annotation VCF that drives backbone annotation + rescue. Three subtle invariants are
 load-bearing and commented in-file: (1) `--rm-dup exact` **not** `all` (all collapses by position and
 silently drops just-split alt alleles); (2) `harmonize()` computes an explicit drop-list from the
 header instead of `-x ^keep,...` because bcftools 1.13's caret form errors when nothing needs removing.
+(3) the carrier filter after the split: a caller listing `ALT=A,C` but genotyping `0/2` yields a `0/0`
+record for A once split, which used to count as a DeepVariant "call" (inflating NCALLERS/CONF) and
+block the rescue of A from the other callers. Use `GT~"1"`, not `GT="alt"`, which on bcftools 1.13
+also drops half-calls like `./1`.
 
 ## Three entry points (same callers, same consensus.sh, same cloud setup)
 

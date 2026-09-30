@@ -7,7 +7,18 @@
 #   2. run_filtering.sh in that workdir -> <proband>.<panel>.candidatos (auto-discovers trios/duos).
 #   3. Copy the .candidatos to $WIN.
 # Progress: tail this script's log, or `watch <repo>/bge_filter_progress.sh`.
+# FAIL-CLOSED: any VEP failure stops the run before filtering (a partial cohort
+# changes the cohort-artifact denominator), a filtering failure stops before the
+# copy-out, and only tables written by THIS run are copied.
 set -uo pipefail
+
+# Same completeness test consensus_from_results.sh uses: a killed VEP leaves a file
+# whose header still reads, so "header OK" is not "done". Whole = BGZF EOF block + .tbi.
+BGZF_EOF="1f8b08040000000000ff0600424302001b0003000000000000000000"
+complete_vcf() {  # <path.vcf.gz>
+    [[ -s "$1" && -s "$1.tbi" ]] || return 1
+    [[ "$(tail -c 28 "$1" | od -An -tx1 | tr -d ' \n')" == "$BGZF_EOF" ]]
+}
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/site.sh"
 CONS_DIR="${CONS_DIR:-$SAREK_REPO/consensus-cohort}"
@@ -43,31 +54,44 @@ done=0; failed=()
 for v in "${VCFS[@]}"; do
     s=$(basename "$v" .consensus.vcf.gz)
     out="$WD/$s.germline.vep.vcf.gz"
-    if [ -s "$out" ] && bcftools view -h "$out" >/dev/null 2>&1; then
-        :                                                  # already annotated — skip
+    if complete_vcf "$out"; then
+        :                                                  # already annotated, whole — skip
     else
         rm -f "$out" "$out.tbi"
         if ! bash "$VEP" "$v" "$out" > "$WD/vep.$s.log" 2>&1; then
-            echo "  WARN: VEP failed for $s (see $WD/vep.$s.log)"; failed+=("$s")
+            echo "  ERROR: VEP failed for $s (see $WD/vep.$s.log)"; failed+=("$s")
+            rm -f "$out" "$out.tbi"
         fi
     fi
     done=$((done+1))
     printf "[annotate] %d/%d done | last: %-14s | failed: %d\n" "$done" "$total" "$s" "${#failed[@]}"
 done
 echo "[annotate] complete: $((total-${#failed[@]}))/$total ok${failed:+; failed: ${failed[*]}}"
+if [ "${#failed[@]}" -gt 0 ]; then
+    echo "ERROR: ${#failed[@]} sample(s) failed VEP — NOT filtering a partial cohort. Fix and re-run (resumable)."
+    exit 1
+fi
 
 # ── Step 2: candidate-filtering (Pangolin + filter, all probands) ──
 echo "[filter] running candidate-filtering in $WD ..."
-WORKDIR="$WD" bash "$CF/run_filtering.sh"
+STAMP="$WD/.filter_started"; : > "$STAMP"
+if ! WORKDIR="$WD" bash "$CF/run_filtering.sh"; then
+    echo "ERROR: run_filtering.sh failed — nothing copied out (tables in $WD may be stale)."
+    exit 1
+fi
 
 # ── Step 3: collect candidatos to the deliverable folder ──
 # WIN is a WSL convenience (a Windows-side folder). Unset — the normal case off WSL —
 # means there is nowhere to copy to, so the results simply stay in $WD.
 OUT_NAME="${OUT_NAME:-bge-candidatos}"          # override for other cohorts (e.g. epigen-candidatos)
-n=$(ls "$WD"/*.candidatos 2>/dev/null | wc -l)
+# Only tables written by this run: an older table in a reused $WD (another panel,
+# a removed sample) must not ride along into the deliverable.
+mapfile -t NEW < <(find "$WD" -maxdepth 1 -name '*.candidatos' -newer "$STAMP" | sort)
+n=${#NEW[@]}
+[ "$n" -gt 0 ] || { echo "ERROR: filtering reported success but wrote no .candidatos"; exit 1; }
 if [ -n "$WIN" ]; then
     mkdir -p "$WIN/$OUT_NAME"
-    cp "$WD"/*.candidatos "$WIN/$OUT_NAME/" 2>/dev/null
+    cp -- "${NEW[@]}" "$WIN/$OUT_NAME/"
     echo "[done] $n candidatos -> $WIN/$OUT_NAME/"
 else
     echo "[done] $n candidatos in $WD/  (set WIN=/path/to/folder to copy them out)"

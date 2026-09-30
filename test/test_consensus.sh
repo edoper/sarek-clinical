@@ -65,17 +65,26 @@ EOF
 VAF='##FORMAT=<ID=VAF,Number=A,Type=Float,Description="Alt allele fraction">
 '
 row() { printf 'chr1\t%s\t.\t%s\t%s\t50\tPASS\t.\t%s\t%s\n' "$1" "$(b "$1")" "$(a "$1")" "$2" "$3"; }
+a2() { case "$(b "$1")" in A) echo C;; T) echo G;; C) echo A;; G) echo T;; esac; }  # 2nd ALT, != REF and != a()
 
 # 100 = all four | 200 = DeepVariant only | 300 = STR+HC+FB (rescue via strelka)
 # 400 = HC+FB (rescue via haplotypecaller) | 500 = FB only, 600 = STR only  -> both DROPPED
+# 700 = DeepVariant lists ALT=a,a2 but genotypes 0/2 (carries a2 only). After the split the
+#       a-allele record is 0/0: it must be DROPPED, not counted as a DeepVariant call, so the
+#       a-allele that Strelka2+HC DO call is rescued (strelka GT, NCALLERS=2) instead of
+#       being reported with DeepVariant's 0/0. The a2 allele stays as a DV-only call.
 { hdr "$VAF"; row 100 "GT:GQ:DP:AD:VAF" "0/1:99:30:15,15:0.5"
-              row 200 "GT:GQ:DP:AD:VAF" "1/1:80:25:0,25:1.0"; } | bgzip -c > dv.vcf.gz
+              row 200 "GT:GQ:DP:AD:VAF" "1/1:80:25:0,25:1.0"
+              printf 'chr1\t700\t.\t%s\t%s,%s\t50\tPASS\t.\tGT:GQ:DP:AD:VAF\t0/2:60:30:15,0,15:0.0,0.5\n' "$(b 700)" "$(a 700)" "$(a2 700)"
+            } | bgzip -c > dv.vcf.gz
 { hdr "";     row 100 "GT:GQ:DP:AD" "0/1:70:28:14,14"
               row 300 "GT:GQ:DP:AD" "0/1:60:20:10,10"
-              row 600 "GT:GQ:DP:AD" "0/1:55:18:9,9"; }  | bgzip -c > str.vcf.gz
+              row 600 "GT:GQ:DP:AD" "0/1:55:18:9,9"
+              row 700 "GT:GQ:DP:AD" "0/1:50:30:15,15"; } | bgzip -c > str.vcf.gz
 { hdr "";     row 100 "GT:GQ:DP:AD" "0/1:65:27:13,14"
               row 300 "GT:GQ:DP:AD" "0/1:58:19:9,10"
-              row 400 "GT:GQ:DP:AD" "0/1:52:16:8,8"; }  | bgzip -c > hc.vcf.gz
+              row 400 "GT:GQ:DP:AD" "0/1:52:16:8,8"
+              row 700 "GT:GQ:DP:AD" "0/1:48:30:15,15"; } | bgzip -c > hc.vcf.gz
 { hdr "";     row 100 "GT:GQ:DP:AD" "0/1:40:26:13,13"
               row 300 "GT:GQ:DP:AD" "0/1:38:18:9,9"
               row 400 "GT:GQ:DP:AD" "0/1:35:15:7,8"
@@ -86,14 +95,19 @@ mkdir -p out
 "$CONSENSUS_SH" -r ref.fa -d dv.vcf.gz -o out/S1 \
   -c strelka=str.vcf.gz -c freebayes=fb.vcf.gz -c haplotypecaller=hc.vcf.gz >/dev/null 2>&1
 bcftools query -f '%POS\t%INFO/NCALLERS\t%INFO/CONF\t%INFO/GT_SOURCE\t[%GT]\n' out/S1.consensus.vcf.gz > got.txt
+bcftools query -f '%POS\t%ALT\n' out/S1.consensus.vcf.gz | awk -v x="$(a 700)" '$1==700 && $2==x' > got700a.txt
 cat > want.txt <<'EOF'
 100	4	HIGH	deepvariant	0/1
 200	1	LOW	deepvariant	1/1
 300	3	HIGH	strelka	0/1
 400	2	MEDIUM	haplotypecaller	0/1
+700	2	MEDIUM	strelka	0/1
+700	1	LOW	deepvariant	0/1
 EOF
 if diff -u want.txt got.txt >/dev/null; then ok "backbone+rescue correct; single-caller sites 500/600 dropped"
 else bad "consensus content mismatch:"; diff -u want.txt got.txt || true; fi
+[[ -s got700a.txt ]] && ok "DeepVariant 0/0 (split 0/2) did not block the rescue of the allele other callers made" \
+    || bad "allele genotyped 0/0 by DeepVariant after the split is missing"
 [[ -s out/S1.consensus.vcf.gz.tbi ]]      && ok "output indexed"          || bad "no .tbi written"
 [[ ! -e out/S1.consensus.vcf.gz.partial ]] && ok "no .partial left behind" || bad ".partial leaked on success"
 

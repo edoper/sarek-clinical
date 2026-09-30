@@ -130,10 +130,19 @@ norm_one() {
   # --rm-dup exact (NOT all): `all` collapses by POSITION, silently deleting
   # alternate alleles of a just-split multiallelic. Two passes because older
   # bcftools (<=1.13) refuses -m and --rm-dup in one `norm` call.
+  # After the split, keep only records the sample CARRIES (a "1" among its GT
+  # alleles). A caller that lists ALT=A,C but genotypes 0/2 yields, once split, a
+  # 0/0 record for A: not a call, yet it counted as "present" (inflating NCALLERS/
+  # CONF) and a DeepVariant 0/0 blocked the rescue of a real genotype from another
+  # caller. `GT~"1"` (not GT="alt", which drops half-calls like ./1 on bcftools 1.13)
+  # also drops ./. and 0/. . Sites-only inputs have no GT and skip this step.
+  local ns; ns=$(bcftools query -l "$in" | wc -l)
+  local carrier=(cat)
+  [[ "$ns" -ge 1 ]] && carrier=(bcftools view -i 'GT~"1"')
   { bcftools view -f "$FILTER_KEEP" "$in" \
       | bcftools norm -f "$REF" -m -both \
+      | "${carrier[@]}" \
       | bcftools norm --rm-dup exact -Oz -o "$tmp" ; } 2>>"$LOG"
-  local ns; ns=$(bcftools query -l "$tmp" | wc -l)
   if [[ "$ns" -ge 1 ]]; then
     printf '%s\n' "$SAMPLE_ID" | bcftools reheader -s - "$tmp" -o "$out" 2>>"$LOG"; rm -f "$tmp"
   else
