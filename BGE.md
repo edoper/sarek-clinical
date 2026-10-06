@@ -25,7 +25,7 @@ calling targets, not MANE-restricted, so you can re-explore without re-calling).
 
 | File | Purpose |
 |---|---|
-| `gcb-bge-wes.config` | Google Batch profile: Sarek `--step variant_calling --wes`, 4 callers, GATK.GRCh38, Spot, `maxRetries=4`, **pre-staged reference** (`gs://…/refs/GATK.GRCh38/`). |
+| `gcb-bge-wes.config` | Google Batch profile: Sarek `--step variant_calling --wes`, 4 callers, GATK.GRCh38, Spot, `maxRetries=6`, **pre-staged reference** (`gs://…/refs/GATK.GRCh38/`). |
 | `build_cohort.py` | Terra sample-table export (`*.tsv`) → `families.tsv` + a CRAM staging list. Role map: proband=no suffix(`-P`), `…M`=madre(`-M`), `…P`=padre(`-F`). |
 | `make_samplesheet.sh` | `families.tsv` → Sarek samplesheet, naming samples `<family>-<role>` for candidate-filtering. |
 | `run_bge_wes.sh` | Launch the calling on Batch (single sample / small set). |
@@ -117,7 +117,7 @@ export INTERVALS=gs://intergenica-sarek-clinical/bge-wes/targets/bge_calling_reg
 # Step 6 — annotate + filter (candidate-filtering repo)
 cd ~/candidate-filtering
 bash vep_annotate.sh ~/sarek-clinical/consensus/FAM01-P.consensus.vcf.gz FAM01-P.germline.vep.vcf.gz
-bash run_filtering.sh                          # -> FAM01-P.g4e-2025.candidatos
+bash run_filtering.sh                          # -> FAM01-P.g4e.candidatos
 
 # Step 7 — clean up bucket scratch
 gcloud storage rm -r gs://intergenica-sarek-clinical/bge-wes/work

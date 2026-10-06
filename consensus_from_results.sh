@@ -83,9 +83,13 @@ for s in $samples; do
     declare -A vcf=()
     ok=1
     for caller in deepvariant strelka freebayes haplotypecaller; do
-        uri=$(find_vcf "$caller" "$s")
+        # `|| uri=""`: find_vcf returns non-zero when nothing matches, and under set -e a
+        # bare assignment would abort the WHOLE cohort instead of skipping this sample.
+        uri=$(find_vcf "$caller" "$s") || uri=""
         if [[ -z "$uri" ]]; then echo "  WARN: no $caller VCF for $s — skipping sample"; ok=0; break; fi
-        gcloud storage cp "$uri" "$uri.tbi" "$tmp/" 2>/dev/null || true
+        if ! gcloud storage cp "$uri" "$uri.tbi" "$tmp/" 2>/dev/null; then
+            echo "  WARN: download failed for $caller VCF of $s — skipping sample"; ok=0; break
+        fi
         vcf[$caller]="$tmp/$(basename "$uri")"
     done
     [[ "$ok" == 1 ]] || { rm -rf "$tmp"; continue; }

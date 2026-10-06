@@ -1,8 +1,26 @@
 # Sarek Clinical Pipeline — Plain-Language Guide
 
 Clinical germline variant calling on **Google Cloud** using **four independent variant callers**,
-keeping a variant when **at least two agree** (DeepVariant given priority), then handing a single
-consensus VCF to the `candidate-filtering` repo. The heavy computing runs in the cloud, not on your laptop.
+merged into one **union consensus**: every DeepVariant call is kept, plus variants DeepVariant missed
+that **at least two of the other three callers** agree on. The single consensus VCF is handed to the
+`candidate-filtering` repo. The heavy computing runs in the cloud, not on your laptop.
+
+## What this pipeline does
+
+1. **Calls variants** with nf-core/sarek 3.8.1 (pinned) on Google Batch Spot VMs against GATK GRCh38,
+   using four callers: DeepVariant, Strelka2, FreeBayes and GATK HaplotypeCaller. Inputs are WGS
+   FASTQ (this guide) or Terra BGE exome CRAMs ([BGE.md](BGE.md)).
+2. **Builds a consensus** locally (`consensus.sh`): keeps PASS calls, splits multiallelics and
+   left-aligns, keeps only genotypes the sample carries, then takes the DeepVariant set and rescues
+   sites found by >= 2 other callers. Every record carries `CALLERS`, `NCALLERS`, `CONF`
+   (HIGH >= 3 / MEDIUM 2 / LOW 1) and `GT_SOURCE` so a curator can see the support behind a call.
+3. **Checks sample QC** (`qc_gate.sh`): variant count, Ti/Tv, het/hom ratio, an allele-balance
+   contamination proxy, depth and chrX-based sex. It is run separately and is not yet a blocking gate.
+4. **Hands off** the consensus VCF to `candidate-filtering` (VEP annotation, gene-panel filtering,
+   triage ACMG classification), driven end to end for a cohort by `run_bge_annotate_filter.sh`.
+
+Validation against GIAB HG002 covers the WGS and Agilent-exome arms (see `validation/`); **the BGE arm
+is not yet GIAB-validated**, so its indel calls need orthogonal confirmation.
 
 > **Two entry points** (same callers, same `consensus.sh`, same Google Cloud setup):
 > - **WGS from FASTQ** — this guide, below.
@@ -582,4 +600,4 @@ or names exactly what broke.
 - `validation/` — GIAB HG002 accuracy validation (WGS **and** exome): `run_giab.sh` (end to end), `benchmark_giab.sh` (RTG vcfeval per confidence tier), `health_check.sh` (progress/cost + budget guard), `RESULTS-HG002.md` / `RESULTS-HG002-EXOME.md` (the measured numbers), `SOP.md`, `EFFICIENCY.md`, `../qc_gate.sh` (per-sample gate)
 
 **Reliability defaults** (in `gcb.config`)
-- `queueSize=40` concurrency cap · `maxRetries=5` (survives Spot preemption streaks) · `SAREK_SPOT=false` → on-demand VMs
+- `queueSize=40` concurrency cap · `maxRetries=6` (survives Spot preemption streaks) · `SAREK_SPOT=false` → on-demand VMs

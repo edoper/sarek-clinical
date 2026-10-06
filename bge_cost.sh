@@ -18,6 +18,10 @@ NOW=$(date -u +%s)
 
 # machineType -> "vCPU memGB"  (types seen in this project's runs)
 declare -A SPEC=(
+  [e2-micro]="0.25 1" [e2-small]="0.5 2" [e2-medium]="1 4"
+  [e2-standard-2]="2 8" [e2-standard-4]="4 16" [e2-standard-8]="8 32" [e2-standard-16]="16 64" [e2-standard-32]="32 128"
+  [e2-highmem-2]="2 16" [e2-highmem-4]="4 32" [e2-highmem-8]="8 64" [e2-highmem-16]="16 128"
+  [e2-highcpu-2]="2 2" [e2-highcpu-4]="4 4" [e2-highcpu-8]="8 8" [e2-highcpu-16]="16 16" [e2-highcpu-32]="32 32"
   [c2-standard-30]="30 120" [c2-standard-8]="8 32" [c2-standard-4]="4 16"
   [c2d-highcpu-2]="2 4"
   [n1-standard-1]="1 3.75"
@@ -31,7 +35,7 @@ declare -A SPEC=(
 # family -> SPOT USD "perVCPUhr perGBhr" (us-central1, ~early-2026)
 declare -A RATE=(
   [n1]="0.006655 0.000892" [n2]="0.007540 0.001010" [n2d]="0.006554 0.000878"
-  [c2]="0.007820 0.001047" [c2d]="0.006810 0.000912"
+  [c2]="0.007820 0.001047" [e2]="0.008000 0.001080" [c2d]="0.006810 0.000912"
 )
 
 csv=$(gcloud batch jobs list --location="$REGION" \
