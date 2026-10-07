@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# run_giab_exome.sh — GIAB validation of the EXOME arm (HG002, Agilent SureSelect capture).
+# run_giab_exome.sh: GIAB validation of the EXOME arm (HG002, Agilent SureSelect capture).
 #
 # WHY A SECOND VALIDATION
 #   The WGS validation (run_giab.sh) measures the pipeline on 30x PCR-free whole-genome reads.
-#   The clinical arms are exome/BGE. Restricting WGS calls to a capture BED — which the WGS
-#   validation also reports — does NOT reproduce a real exome: it has none of the capture bias,
+#   The clinical arms are exome/BGE. Restricting WGS calls to a capture BED: which the WGS
+#   validation also reports: does NOT reproduce a real exome: it has none of the capture bias,
 #   duplicate structure or uneven target coverage that an actual hybrid-capture library has, and
 #   those are exactly what make exome calling harder. This script validates the assay you deliver.
 #
@@ -17,7 +17,7 @@
 #   Kit note: the reference exome is captured with SureSelect **V5**; this deployment's clinical
 #   BED is **V6**. Regions present in V6 but not V5 have no reads and would score as false
 #   negatives that are the KIT's doing, not the pipeline's. The benchmark therefore reports the
-#   g4e panel and, separately, the capture region — read the caveat in RESULTS-HG002-EXOME.md.
+#   g4e panel and, separately, the capture region: read the caveat in RESULTS-HG002-EXOME.md.
 #
 # USAGE
 #   ./run_giab_exome.sh          # from validation/, after ../env.sh is sourced
@@ -41,7 +41,7 @@ if [ ! -s HG002exome.R1.fastq.gz ] || [ ! -s HG002exome.R2.fastq.gz ]; then
                        -0 /dev/null -s /dev/null -n -
     rm -f tmp.collate*.bam
 else
-    echo "===== Stage 1: FASTQ already present — skipping conversion ====="
+    echo "===== Stage 1: FASTQ already present; skipping conversion ====="
 fi
 
 # ── Stage 2: upload (GCS ingress is free) ──
@@ -75,7 +75,7 @@ SAMPLESHEET="$PWD/samplesheet-giab-exome.csv" OUTDIR="$B/results" \
 # ── Stage 5: the QC gate must pass before the result is considered usable ──
 echo "===== Stage 5: per-sample QC gate ====="
 ../../qc_gate.sh consensus/HG002EX.consensus.vcf.gz --sex M --json HG002EX.qc.json || \
-  echo "  NOTE: QC gate did not return PASS — see above (expected for a 2015 exome; record it)"
+  echo "  NOTE: QC gate did not return PASS; see above (expected for a 2015 exome; record it)"
 
 # ── Stage 6: benchmark ──
 echo "===== Stage 6: benchmark vs GIAB v4.2.1 ====="

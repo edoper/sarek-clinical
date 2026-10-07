@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# test_consensus.sh — regression test for the two load-bearing behaviours of the
+# test_consensus.sh: regression test for the two load-bearing behaviours of the
 # consensus stage. Synthetic data only (no patient data, no cloud, no network);
 # runs in ~30s on a laptop. Requires bcftools, bgzip, tabix, samtools, python3.
 #
-#   1. CONSENSUS RULE — DeepVariant backbone + rescue of variants >=2 OTHER callers
+#   1. CONSENSUS RULE: DeepVariant backbone + rescue of variants >=2 OTHER callers
 #      agreed on, genotype borrowed from Strelka2 else HaplotypeCaller, single-caller
 #      non-DeepVariant sites dropped. Guards the invariants documented in consensus.sh
 #      (notably `--rm-dup exact`, which a well-meaning switch to `all` would break by
 #      collapsing just-split multiallelics).
 #
-#   2. CRASH SAFETY — consensus.sh must never leave a truncated VCF at its FINAL output
+#   2. CRASH SAFETY: consensus.sh must never leave a truncated VCF at its FINAL output
 #      path, and the resume guard in consensus_from_results.sh must reject anything that
 #      is not whole+indexed. A partial file at the final path is the dangerous failure:
 #      a resume reads it as "done" and ships an incomplete variant list to VEP and
@@ -123,7 +123,7 @@ complete_vcf U.vcf.gz && bad "unindexed VCF accepted" || ok "unindexed VCF rejec
 
 # ─────────────────── test 3: no partial at the final path ───────────────────
 # Needs enough variants that the final concat|sort write window is observable.
-# Kill the whole process group the instant the first output file appears — that is
+# Kill the whole process group the instant the first output file appears: that is
 # mid-write by construction, so this is deterministic rather than a timing race.
 echo "== test 3: crash mid-write leaves the final path clean =="
 python3 - <<'PY'
@@ -164,10 +164,10 @@ sleep 0.3
 if   compgen -G "out3/S1.consensus.vcf.gz*" >/dev/null && [[ ! -e out3/S1.consensus.vcf.gz ]]; then
      ok "killed mid-write: only .partial present, final path clean"
 elif [[ -e out3/S1.consensus.vcf.gz ]] && complete_vcf out3/S1.consensus.vcf.gz; then
-     echo "  SKIP  run completed before the kill landed — inconclusive (rerun on a slower box)"
+     echo "  SKIP  run completed before the kill landed: inconclusive (rerun on a slower box)"
 elif [[ -e out3/S1.consensus.vcf.gz ]]; then
-     bad "TRUNCATED VCF AT FINAL PATH ($(stat -c%s out3/S1.consensus.vcf.gz) bytes) — a resume would ship it"
-else bad "no output produced at all — test did not exercise the write window"; fi
+     bad "TRUNCATED VCF AT FINAL PATH ($(stat -c%s out3/S1.consensus.vcf.gz) bytes): a resume would ship it"
+else bad "no output produced at all: test did not exercise the write window"; fi
 
 echo
 if (( fails == 0 )); then echo "ALL TESTS PASSED"; else echo "$fails TEST(S) FAILED"; exit 1; fi

@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────
-# ALLOW-LIST .gitignore — ignore everything, then un-ignore only code/config.
+# ALLOW-LIST .gitignore: ignore everything, then un-ignore only code/config.
 # This pipeline touches patient data (CRAM paths, sample/family IDs, VCFs).
 # Ignoring by default makes it impossible to commit PHI by accident. Keep private.
 # To track a new code/config file, add an explicit "!<file>" below.
@@ -41,13 +41,13 @@
 !run_epigen_wes.sh
 !upload_epigen_fastq.sh
 
-# Tests (synthetic data only — generated at runtime into a temp dir, never committed)
+# Tests (synthetic data only: generated at runtime into a temp dir, never committed)
 !test/
 !test/test_consensus.sh
 !test/test_qc_gate.sh
 
 # GIAB validation harness + results (HG002 is a PUBLIC reference sample, not a patient,
-# so its accuracy numbers are publishable — that is the point of a validation).
+# so its accuracy numbers are publishable: that is the point of a validation).
 # The bulk data it downloads (truth/, *.sdf, consensus/, rtg-tools/) stays ignored.
 !validation/
 !validation/README.md
@@ -65,7 +65,7 @@
 
 # Raw vcfeval output behind the RESULTS-*.md tables. These were previously kept only
 # on local disk, so the numbers in the reports had no committed source to check them
-# against. HG002 only — no patient data reaches this directory.
+# against. HG002 only: no patient data reaches this directory.
 !validation/metrics/
 !validation/metrics/README.md
 !validation/metrics/REPORT.md

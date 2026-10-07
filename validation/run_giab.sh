@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GIAB validation of the sarek-clinical pipeline — HG002 (NA24385), GRCh38.
+# GIAB validation of the sarek-clinical pipeline: HG002 (NA24385), GRCh38.
 #
 # Runs the pipeline EXACTLY as it is run clinically (same config, same four callers,
 # same --skip_tools) so the accuracy numbers describe the real pipeline, not a

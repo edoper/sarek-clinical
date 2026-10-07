@@ -1,13 +1,13 @@
-# SOP-001 — Analytical validation and per-run quality control of the sarek-clinical germline pipeline
+# SOP-001: Analytical validation and per-run quality control of the sarek-clinical germline pipeline
 
 | | |
 |---|---|
 | **Document** | SOP-001 |
-| **Version** | 1.0 (DRAFT — unapproved) |
+| **Version** | 1.0 (DRAFT: unapproved) |
 | **Effective date** | *(to be set on approval)* |
 | **Author** | *(to be completed)* |
 | **Reviewed by** | *(to be completed)* |
-| **Approved by** | *(to be completed — must be the laboratory director or delegate)* |
+| **Approved by** | *(to be completed: must be the laboratory director or delegate)* |
 | **Review interval** | 12 months, or on any change to §4 |
 
 > **STATUS: DRAFT TEMPLATE, NOT AN APPROVED PROCEDURE.** The acceptance criteria in §5 are
@@ -28,14 +28,14 @@ performance is required, and what per-sample quality control every clinical run 
 Illumina short-read WGS or exome data aligned to GRCh38, within regions where the reference truth
 set is confident.
 
-**Explicitly OUT of scope — this pipeline must not be relied on for these:**
+**Explicitly OUT of scope: this pipeline must not be relied on for these:**
 
 - structural variants, copy-number variants, repeat expansions
 - mosaicism and low-allele-fraction somatic variation
 - mitochondrial and pharmacogenomic star-allele calling
 - any region outside the reference truth set's high-confidence intervals (notably segmental
   duplications and many repeat classes)
-- clinical interpretation — the downstream `candidate-filtering` step is a **triage aid**; every
+- clinical interpretation: the downstream `candidate-filtering` step is a **triage aid**; every
   candidate requires review and sign-out by a qualified professional
 
 ## 3. Definitions
@@ -44,8 +44,8 @@ set is confident.
 |---|---|
 | Truth set | An independently established set of genotypes for a reference sample (here: GIAB) |
 | High-confidence regions | The BED accompanying the truth set, where its genotypes are reliable |
-| Recall (sensitivity) | TP / (TP + FN) — of true variants, the fraction found |
-| Precision | TP / (TP + FP) — of variants called, the fraction real |
+| Recall (sensitivity) | TP / (TP + FN): of true variants, the fraction found |
+| Precision | TP / (TP + FP): of variants called, the fraction real |
 | F1 | Harmonic mean of precision and recall |
 | Ti/Tv | Transition/transversion ratio; a call-set purity indicator |
 | QC gate | A per-sample pass/fail decision made before any candidate list is read |
@@ -75,7 +75,7 @@ accuracy varies **more by region than by any filtering choice**: g4e panel F1 0.
 0.9948, padded exome capture 0.9895. State the reportable range, then set thresholds for it.
 
 **Reportable range for this laboratory:** ☐ ______________________________
-*(recommended: the g4e panel — MANE exons ±20 bp of the panel genes — since that is what is
+*(recommended: the g4e panel, MANE exons ±20 bp of the panel genes, since that is what is
 reported. Anything outside it is explicitly not covered by these criteria.)*
 
 ### 5.1 What the statistics allow you to claim
@@ -91,7 +91,7 @@ Thresholds cannot be tighter than the confidence interval of the measurement tha
 | genome-wide | INDEL | 525,397 | 0.9930 | [0.9928, 0.9933] | 0.04 pp |
 
 **The panel contains only 590 true indels.** One panel run therefore cannot distinguish 99.0% from
-99.6% indel sensitivity — the interval spans both. **Setting a 99% indel threshold verified only by
+99.6% indel sensitivity: the interval spans both. **Setting a 99% indel threshold verified only by
 a panel run would be aspirational, not evidenced.** Two honest ways forward:
 
 1. **Verify on the wide region, confirm on the narrow one.** Establish the numeric threshold using
@@ -101,7 +101,7 @@ a panel run would be aspirational, not evidenced.** Two honest ways forward:
    across samples narrows the panel interval and simultaneously provides the reproducibility
    evidence §6 requires.
 
-### 5.2 Analytical validation thresholds — two-tier
+### 5.2 Analytical validation thresholds: two-tier
 
 Two limits, deliberately. A single threshold you fail occasionally creates pressure to rationalise
 failures; a floor plus a target keeps that honest.
@@ -125,7 +125,7 @@ numbers covering both would be wrong for one of them.
 |---|---|---|---|---|
 | SNV sensitivity | ☐ *(suggest 98.5%)* | ☐ *(suggest 99.0%)* | 99.39% | CI ±0.4 pp |
 | SNV precision | ☐ *(suggest 98.5%)* | ☐ *(suggest 99.0%)* | 99.72% | |
-| INDEL sensitivity | ☐ *(suggest 88.0%)* | ☐ *(suggest 93.0%)* | 92.40% | **CI [87.4, 95.5] — 8 pp wide** |
+| INDEL sensitivity | ☐ *(suggest 88.0%)* | ☐ *(suggest 93.0%)* | 92.40% | **CI [87.4, 95.5]: 8 pp wide** |
 | INDEL precision | ☐ *(suggest 88.0%)* | ☐ *(suggest 93.0%)* | 91.57% | |
 
 The exome indel floor is suggested near the **lower confidence bound**, not the point estimate,
@@ -136,7 +136,7 @@ different capture kit (V5 vs V6) which depresses recall for reasons unrelated to
 Notes for whoever signs this off:
 
 - **The suggested floors are what the current evidence supports**, not the best imaginable numbers.
-  The panel indel CI lower bound is 98.27%, so a 98% floor is verified; a 99% floor is not — yet.
+  The panel indel CI lower bound is 98.27%, so a 98% floor is verified; a 99% floor is not: yet.
 - **SNV thresholds must be region-aware.** Genome-wide SNV sensitivity is 99.37%, *below* a 99.5%
   target. If the reportable range is the panel, 99.5% is appropriate; if it is genome-wide, it is
   not. Do not copy one into the other.
@@ -165,13 +165,13 @@ above 20×); 50× is suggested here because capture is uneven and the margin cos
 
 **A sample failing any criterion must not have its candidate list reported.**
 
-## 6. Procedure — analytical validation
+## 6. Procedure: analytical validation
 
-1. Confirm the environment: `source env.sh`, then `./test/test_consensus.sh` — must print
+1. Confirm the environment: `source env.sh`, then `./test/test_consensus.sh`; must print
    `ALL TESTS PASSED`.
 2. Obtain the reference sample data and truth set (`validation/README.md` §0.1–0.2).
 3. Run `validation/run_giab.sh`. It executes the pipeline with the **same configuration used
-   clinically** — no tuning specific to the reference sample is permitted, as that would invalidate
+   clinically**: no tuning specific to the reference sample is permitted, as that would invalidate
    the result.
 4. On completion, record in `RESULTS-*.md`: pipeline commit, truth-set version, region definition,
    and precision/recall/F1 split by variant class.
@@ -187,7 +187,7 @@ change to `consensus.sh`, the caller set, or the reference.
 ideally a second reference sample. Record here what was actually done, and do not describe a
 single-run validation as complete.
 
-## 7. Procedure — per-run quality control
+## 7. Procedure: per-run quality control
 
 For **every** clinical sample, before any candidate list is reviewed:
 
@@ -195,10 +195,10 @@ For **every** clinical sample, before any candidate list is reviewed:
 ./qc_gate.sh <sample>.consensus.vcf.gz --sex <M|F> --targets <panel.bed> --json <sample>.qc.json
 ```
 
-- **exit 0 (PASS)** — proceed to interpretation.
-- **exit 2 (WARN)** — a qualified person reviews the flagged metric and records a decision before
+- **exit 0 (PASS)**: proceed to interpretation.
+- **exit 2 (WARN)**: a qualified person reviews the flagged metric and records a decision before
   proceeding.
-- **exit 1 (FAIL)** — **stop.** Do not report. Investigate: contamination, sample swap, capture or
+- **exit 1 (FAIL)**: **stop.** Do not report. Investigate: contamination, sample swap, capture or
   library failure. Repeat from the wet lab if the cause is not resolved.
 
 Retain the `.qc.json` with the run record. A sex mismatch or an elevated skewed-allele-balance
@@ -229,4 +229,4 @@ Retention period per laboratory policy and applicable law.
 
 | Version | Date | Change | Author |
 |---|---|---|---|
-| 1.0 | 2026-07-27 | Initial draft, unapproved | — |
+| 1.0 | 2026-07-27 | Initial draft, unapproved | - |

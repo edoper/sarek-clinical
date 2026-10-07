@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# make_samplesheet.sh — build an nf-core/sarek (--step variant_calling) samplesheet
+# make_samplesheet.sh: build an nf-core/sarek (--step variant_calling) samplesheet
 # from a simple family/CRAM table, naming samples with the -P/-M/-F convention so the
 # downstream candidate-filtering pipeline auto-discovers trios/duos.
 #

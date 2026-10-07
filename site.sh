@@ -10,7 +10,7 @@
 #   CF=$HOME/code/candidate-filtering
 #   WIN=/mnt/c/Users/me/Documents      # WSL only; leave unset elsewhere
 #
-# The defaults are simply the deployment this repo was developed against — they are a
+# The defaults are simply the deployment this repo was developed against: they are a
 # starting point, not a requirement. gcb*.config read the same SAREK_* variables, so
 # setting them once retargets both the shell scripts and Nextflow.
 
@@ -42,7 +42,7 @@ export SAREK_PROJECT SAREK_REGION SAREK_BUCKET
 # candidate-filtering: the downstream repo. Defaults to a sibling of this checkout.
 : "${CF:=$(dirname "$SAREK_REPO")/candidate-filtering}"
 # WIN: Windows-side deliverable folder (WSL convenience only). Deliberately EMPTY by
-# default — on Linux/macOS there is no /mnt/c, and scripts skip the copy-out step and
+# default: on Linux/macOS there is no /mnt/c, and scripts skip the copy-out step and
 # print where the results are instead of failing.
 : "${WIN:=}"
 export CF WIN

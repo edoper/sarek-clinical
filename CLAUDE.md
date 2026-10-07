@@ -6,20 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Clinical **germline variant calling** on Google Cloud, feeding the separate `~/candidate-filtering`
 repo. Heavy work (nf-core/sarek via Nextflow on **Google Batch**) runs in the cloud; only small VCFs
-come local. There is no build step — this is a collection of Bash/Python orchestration scripts plus
+come local. There is no build step: this is a collection of Bash/Python orchestration scripts plus
 Nextflow config, driven from WSL. `README.md` (WGS) and `BGE.md` (BGE exome) are the
 plain-language user guides; read them for the end-to-end story before changing behavior.
 
-**Per-sample QC gate — `./qc_gate.sh <sample>.consensus.vcf.gz --sex M|F`.** Run it on EVERY
+**Per-sample QC gate: `./qc_gate.sh <sample>.consensus.vcf.gz --sex M|F`.** Run it on EVERY
 clinical sample before any candidate list is read. Exit 1 = do not report. It catches the failure
 modes that variant-level flags cannot: contamination (skewed-AB het fraction, het/hom), sample swap
 (chrX het rate + chrY calls vs expected sex), failed capture (variant count, mean depth) and a
-noise-dominated call set (Ti/Tv). Thresholds are conservative defaults — a lab must set its own and
-record them in `validation/SOP.md` §5.2. Verified in BOTH directions by `test/test_qc_gate.sh` — it must pass good samples as well as
+noise-dominated call set (Ti/Tv). Thresholds are conservative defaults: a lab must set its own and
+record them in `validation/SOP.md` §5.2. Verified in BOTH directions by `test/test_qc_gate.sh`: it must pass good samples as well as
 fail bad ones, because a gate that fails valid samples trains people to ignore it.
 **Sex calling is assay-independent by construction, and this was learned the hard way:** the
 first version failed a known-male EXOME because (a) it counted pseudoautosomal regions, inflating
-a male's chrX het rate 0.090 → 0.169, and (b) it used an ABSOLUTE chrY call threshold — the same
+a male's chrX het rate 0.090 → 0.169, and (b) it used an ABSOLUTE chrY call threshold: the same
 HG002 gives 11,375 chrY calls by WGS and 57 by exome (~200×), since capture kits barely target
 chrY. Now: chrX **non-PAR** het rate is primary, chrY is normalised per 1,000 autosomal calls and
 only corroborates. **A validated pipeline still produces garbage from a bad
@@ -28,13 +28,13 @@ sample; this is the only thing standing between that and a report.**
 **One test suite exists and it covers the only logic that is ours:** `./test/test_consensus.sh`
 (synthetic data, no cloud, no patient data, ~4s). It pins the consensus rule (backbone + rescue +
 which sites get dropped) and the crash-safety invariants below. **Run it after touching
-`consensus.sh` or `consensus_from_results.sh`** — a broken merge yields a plausible VCF, not an
+`consensus.sh` or `consensus_from_results.sh`**: a broken merge yields a plausible VCF, not an
 error, so nothing else in the stack would catch it.
 
 ## The core idea: 4 callers → union consensus → filtering
 
 Every arm runs the same four callers (**DeepVariant, Strelka2, FreeBayes, HaplotypeCaller**) and
-combines them with **`consensus.sh`** — the single shared brain of the repo, reused (never duplicated)
+combines them with **`consensus.sh`**: the single shared brain of the repo, reused (never duplicated)
 by every arm. Its consensus rule is a **union, not a majority filter**:
 
 - **Backbone** = *every* DeepVariant call, keeping DeepVariant's genotype fields (GT/GQ/DP/AD/VAF).
@@ -69,24 +69,24 @@ run `consensus.sh` per sample, resumable, sample column auto-detected) → **`ru
 
 ### Per-order scratch dirs (gitignored, but load-bearing)
 
-A single order/cohort's working files — its samplesheet, launcher, unattended orchestrator, resume
-scripts, and local consensus output — live in a **per-order scratch directory** that `.gitignore`
+A single order/cohort's working files: its samplesheet, launcher, unattended orchestrator, resume
+scripts, and local consensus output: live in a **per-order scratch directory** that `.gitignore`
 excludes (it holds real sample/family IDs and patient VCFs). Such a dir is **not a fourth arm**: it
 reuses `gcb.config`/`gcb-bge-wes.config` + `consensus.sh` like everything else. The scripts below are a
-**reusable template** — the same shapes recur every order and encode lessons worth preserving even
+**reusable template**: the same shapes recur every order and encode lessons worth preserving even
 though the instances themselves stay private. Keep the private run-specific narrative (which cohort,
 which IDs, what was found) in a per-run note under `$WIN`, never in tracked docs.
 
-- **`run_<order>.sh {crams|fastq}`** — WGS variant: **no `--wes`, no `--intervals`**. CRAM-start and
+- **`run_<order>.sh {crams|fastq}`**: WGS variant: **no `--wes`, no `--intervals`**. CRAM-start and
   FASTQ-start must be **two separate `nextflow run`s** because sarek's `--step` is global (`crams` =
   `--step variant_calling`, `fastq` = `--step mapping`). `cd` to the repo root so the config resolves.
-- **`orchestrate_<order>.sh`** — **unattended** end-to-end chain (stage/verify inputs → sarek → consensus
+- **`orchestrate_<order>.sh`**: **unattended** end-to-end chain (stage/verify inputs → sarek → consensus
   → VEP + candidate-filtering → `$WIN/<order>-candidatos`). **Fail-closed**: any stage failure stops the
   chain. Every stage is **idempotent** (staging skips on exact byte-size match; sarek uses `-resume`),
   which is what makes re-running it the resume path. A `WAIT_SECS` env var can gate a pre-flight wait.
-- **`resume_<order>.sh`** — full resume after a shutdown. Deletes orphan `nf-*` Batch jobs **first** (a
+- **`resume_<order>.sh`**: full resume after a shutdown. Deletes orphan `nf-*` Batch jobs **first** (a
   dead driver leaves them billing), then re-execs the orchestrator with `WAIT_SECS=0`.
-- **A local-only resume for the VEP/filter tail** — needed because of a real trap: a Stage-4 guard like
+- **A local-only resume for the VEP/filter tail**: needed because of a real trap: a Stage-4 guard like
   `[[ ! -s VEPOUT ]]` treats a **partial** VEP VCF (killed mid-run) as "done" and would silently ship
   truncated candidatos. Such a script must **delete the partial VEP artifacts before re-annotating**.
   General rule: **any resume guard must invalidate partial outputs, not just test for existence.**
@@ -96,29 +96,29 @@ which IDs, what was found) in a per-run note under `$WIN`, never in tracked docs
   28-byte **BGZF EOF block** *and* has a `.tbi`, else it deletes the leftovers and re-runs. Verified
   by killing a 500k-variant run the instant the output file appears: the pre-fix code left a
   truncated VCF at the final path that `[[ -s ]]` accepted as "done".
-- **A `$WIN` log mirror** — `cp -f` (never append) the orchestrator log to `$WIN` on an interval, because
+- **A `$WIN` log mirror**: `cp -f` (never append) the orchestrator log to `$WIN` on an interval, because
   drvfs append-caching hides live progress from the Windows side (see the WSL gotcha below).
 - **Watch for placeholder samplesheets.** A committed `samplesheet-*.csv` example may hold `GS_CRAM_PATH_*`
-  placeholders — never feed one to a real run.
+  placeholders: never feed one to a real run.
 
 ## Validation
 
 `validation/` holds the accuracy evidence and how to reproduce it: `run_giab.sh` (WGS),
-`run_giab_exome.sh` (exome — the arm actually delivered clinically), `benchmark_giab.sh`,
+`run_giab_exome.sh` (exome: the arm actually delivered clinically), `benchmark_giab.sh`,
 `SOP.md` (draft procedure with acceptance criteria left for the lab to set), and `RESULTS-*.md`.
-**Two results to remember.** (1) Accuracy varies more by REGION than by confidence tier — g4e panel
+**Two results to remember.** (1) Accuracy varies more by REGION than by confidence tier: g4e panel
 F1 0.9977, genome-wide 0.9948. (2) **The exome arm is materially worse than WGS, and only for
 indels**: on a REAL capture library, same panel genes, SNV F1 0.9955 but INDEL F1 **0.9198**, versus
 0.9934 for WGS reads merely restricted to the panel. Restricting WGS to a BED is NOT a substitute
-for validating the exome — it was optimistic by ~0.07 F1 on indels. Quote
+for validating the exome: it was optimistic by ~0.07 F1 on indels. Quote
 `RESULTS-HG002-EXOME.md` for the exome/BGE arms, never the WGS exome-restricted row. Quote the number for the region you
 report from. The ≥2-caller rescue arm is net-negative genome-wide (8.7 FP per TP) but neutral
 inside the panel, so the shipped default needs no change.
 
-## Cloud environment (provisioned — do not re-scaffold; portable via site.sh)
+## Cloud environment (provisioned: do not re-scaffold; portable via site.sh)
 
 **README §0 is the from-scratch path** (install, project/bucket/IAM, reference staging,
-candidate-filtering) — send a new deployment there rather than reconstructing setup ad hoc. The IAM
+candidate-filtering): send a new deployment there rather than reconstructing setup ad hoc. The IAM
 roles and APIs in it are the verified-minimal set (cross-checked against Google's Batch docs and this
 project's actual IAM policy), so do not broaden them casually.
 
@@ -128,7 +128,7 @@ script) defines `SAREK_REPO` (derived from the file's own location, so any check
 checkout) and `WIN` (empty by default). Override by exporting, or in an untracked **`site.env`**
 beside `site.sh`. The three `gcb*.config` files read the same `SAREK_*` env vars via
 `System.getenv(...) ?: <default>`, so setting them once retargets both the shell scripts and
-Nextflow. **Never put a personal path or a new deployment's ids in a tracked file** — that is what
+Nextflow. **Never put a personal path or a new deployment's ids in a tracked file**: that is what
 `site.env` is for. Defaults below are this deployment; they are a starting point, not a requirement.
 
 - GCP project `intergenica`, region **us-central1**, billing "Computacion-nube".
@@ -140,7 +140,7 @@ Nextflow. **Never put a personal path or a new deployment's ids in a tracked fil
 ## Running things
 
 **Always first:** `source ~/sarek-clinical/env.sh` (loads JDK21 + Nextflow and sets
-`NXF_SYNTAX_PARSER=v1` — **required**; sarek 3.8.1 configs use legacy syntax the Nextflow 26.x parser
+`NXF_SYNTAX_PARSER=v1`: **required**; sarek 3.8.1 configs use legacy syntax the Nextflow 26.x parser
 rejects). Pin **`-r 3.8.1`** and `-profile docker` on every `nextflow run`.
 
 ```bash
@@ -161,7 +161,7 @@ SAMPLESHEET=samplesheet-cohort.csv OUTDIR=.../results-cohort \
 ./consensus.sh -r refs/Homo_sapiens_assembly38.fasta -d DV.vcf.gz -o out/SAMPLE \
   -c strelka=STR.vcf.gz -c freebayes=FB.vcf.gz -c haplotypecaller=HC.vcf.gz
 
-# zero-cost monitoring (control-plane listing only — no compute/egress)
+# zero-cost monitoring (control-plane listing only: no compute/egress)
 watch -n 30 ~/sarek-clinical/bge_dashboard.sh    # progress + Spot cost/budget bar; BUDGET=30 to override
 ```
 
@@ -172,59 +172,59 @@ Scripts are env-var driven (override without editing): `SAMPLESHEET` `OUTDIR` `I
 ## Non-obvious gotchas (would cost hours to rediscover)
 
 - **Consensus REF must include ALT/decoy contigs.** Use `refs/Homo_sapiens_assembly38.fasta` (the full
-  GATK.GRCh38), **not** a GENCODE primary-assembly FASTA — the latter fails `bcftools norm` on
+  GATK.GRCh38), **not** a GENCODE primary-assembly FASTA: the latter fails `bcftools norm` on
   ALT-contig calls. This is why `consensus_from_results.sh` defaults `REF` to that file.
 - **BGE: call coding-only (Twist ~35 Mb), never the broad 165 Mb BGE region.** BGE is deep (~110×) only
   on exome targets; the rest is low-pass (~3–13×) and direct-calling there yields noise that still
   passes the MANE/consequence gate as `lowDP`. The low-pass genome belongs to imputation (GLIMPSE, arm 2),
   which is **out of scope** here.
-- **Spot preemption can abort a whole run — `errorStrategy` must cover the whole Batch `5000x` class.**
+- **Spot preemption can abort a whole run: `errorStrategy` must cover the whole Batch `5000x` class.**
   Long jobs get reclaimed mid-run. All three configs retry the whole class `[8,10,14,50001..50007]` with
   `maxRetries` 6 (3 in smoke). **`50006` = "VM is recreated during task execution"** is the easy one to
   miss: with it absent, `errorStrategy` falls through to `finish` and a *single* reclaim aborts an entire
   cohort. Across a few hundred caller-runs a reclaim is near-certain, so a narrow list makes big Spot
   runs effectively impossible. Retrying `5000x` is safe: the task never executed (a failed workdir holds
-  only `.command.sh`/`.command.run` — no `.command.err`, no output), so nothing partial can trip a retry. If a run still dies on the tail, rerun
+  only `.command.sh`/`.command.run`: no `.command.err`, no output), so nothing partial can trip a retry. If a run still dies on the tail, rerun
   with **`SAREK_SPOT=false`** for on-demand VMs (~3× VM cost, zero preemption). Only `gcb.config` reads
   this env var; `gcb-bge-wes.config` hardcodes `spot=true`.
 - **Two separate us-central1 quotas bite big cohorts, and `CODE_GCE_QUOTA_EXCEEDED` names both.**
-  (1) CPU (`CPUS`, `N2D_CPUS`) — raise to ≥1000; default 200 starves parallelism.
-  (2) **`IN_USE_ADDRESSES` (limit 69)** — *every* Batch VM takes an external IP, so concurrency is
-  capped by IPs long before CPUs. This is why **every Batch config needs `executor { queueSize = 40 }`** —
+  (1) CPU (`CPUS`, `N2D_CPUS`): raise to ≥1000; default 200 starves parallelism.
+  (2) **`IN_USE_ADDRESSES` (limit 69)**: *every* Batch VM takes an external IP, so concurrency is
+  capped by IPs long before CPUs. This is why **every Batch config needs `executor { queueSize = 40 }`**,
   without it, one cohort can dispatch hundreds of jobs at once and saturate the IP quota. Quota is a free
   ceiling; there is no `gcloud` quota subcommand (use Console / Cloud Quotas REST API).
 - **Big runs: `--skip_tools baserecalibrator,vcftools,multiqc`.** BQSR is unnecessary with a DeepVariant
   backbone; the fragile QC steps can themselves fail on Spot and abort an otherwise-complete run.
-- **A killed Nextflow driver does NOT stop its Batch jobs** — they keep running and billing. Check
+- **A killed Nextflow driver does NOT stop its Batch jobs**: they keep running and billing. Check
   `gcloud compute instances list --filter="name~^nf-"` and delete stragglers before `-resume`.
 - **Uploading FASTQ from `/mnt/c` (WSL):** set `CLOUDSDK_STORAGE_PARALLEL_COMPOSITE_UPLOAD_ENABLED=False`
   or large files corrupt ("Temporary components were not uploaded correctly"). `upload_epigen_fastq.sh`
   already does this.
 - **Sample naming is a downstream contract.** `<family>-P/-M/-F` drives candidate-filtering trio/duo
   auto-discovery. Plain singleton names (e.g. `EPIGEN01`) auto-run as singletons but get `inheritance=NA`.
-  **Watch for Spanish role suffixes in source manifests**: a `…M`/`…P` pair can be *madre*/*padre* —
+  **Watch for Spanish role suffixes in source manifests**: a `…M`/`…P` pair can be *madre*/*padre*,
   a trio filed as three "probands". With no hyphen they run as unrelated singletons; rename to `-M`/`-F`
   (*padre*→`-F`, since `-P` is reserved for proband) and candidate-filtering computes real `inheritance`
   instead of `NA`. Always eyeball a manifest for families before launching.
 - **Terra/TDR sources must be staged into our own bucket first.** TDR (`datarepo-*`) grants
-  object-level read to the *user account* only — the Batch compute SA cannot read it, and even the user
+  object-level read to the *user account* only: the Batch compute SA cannot read it, and even the user
   gets 403 on directory listing (exact-object `ls` works). So Batch can never read TDR directly; copy
   with user credentials into `gs://intergenica-sarek-clinical/<arm>/crams/`. Same-region, so ~$0 egress.
   **TDR exports often omit the `.crai`**: build them on Batch with a samtools
-  container and a **gcsfuse volume** — no download, no egress. Mount under **`/mnt/disks/<name>`**;
+  container and a **gcsfuse volume**: no download, no egress. Mount under **`/mnt/disks/<name>`**;
   the Batch COS image has a read-only root, so any other `mountPath` fails with
   `Error while mounting gcsfuse: stat /mnt/bucket: no such file or directory`. `samtools quickcheck`
   in the same task doubles as an integrity gate on the staged copy.
-- **`pkill -f <pattern>` self-kills** when the pattern appears in the very shell running it — killing
+- **`pkill -f <pattern>` self-kills** when the pattern appears in the very shell running it: killing
   `pkill -f nextflow` from a shell whose command line contains "nextflow" orphaned a live Nextflow JVM
   mid-run. Kill by PID (`ps -eo pid,cmd | grep …`). Same trap in `pgrep -f`-based liveness checks:
   they report a script as RUNNING when only the checking shell matches.
 - **Nextflow's per-caller task counts are not file counts.** DeepVariant emits *both* `.vcf.gz` and
   `.g.vcf.gz` per sample, so counting `*.vcf.gz` double-counts it (a monitor read `76/56`). Count
-  sample **directories** under `results/variant_calling/<caller>/` instead — exact and caller-agnostic.
+  sample **directories** under `results/variant_calling/<caller>/` instead: exact and caller-agnostic.
 - **`--skip_tools vcftools` does not skip `BCFTOOLS_STATS`.** The `VCF_QC_BCFTOOLS_VCFTOOLS`
   subworkflow still runs its bcftools half, which can fail on Spot and (without the `5000x` retry
-  above) abort a finished run over a stats file. (It is cheap — 4 invocations, 6-23 s each, in the
+  above) abort a finished run over a stats file. (It is cheap: 4 invocations, 6-23 s each, in the
   GIAB run.)
 - **`CNNSCOREVARIANTS` is the wall-clock bottleneck of a WGS run: ONE serial task, 3 h 55 m, 2
   cores.** Measured from the GIAB execution trace (2026-07-27): 34% of the entire 11.4 h wall clock
@@ -233,28 +233,28 @@ Scripts are env-var driven (override without editing): `SAMPLESHEET` `OUTDIR` `I
   **It is still NOT free to skip:** `consensus_from_results.sh` prefers
   `*.haplotypecaller.filtered.vcf.gz`, so skipping it feeds the RAW HaplotypeCaller calls into the
   consensus instead of the CNN-filtered ones. The GIAB numbers (F1 0.9948) were measured WITH it.
-  Skipping it is a legitimate ~4 h saving but changes the science — re-run `validation/` if you do.
+  Skipping it is a legitimate ~4 h saving but changes the science: re-run `validation/` if you do.
   *(An earlier revision of this file blamed the stall on `BCFTOOLS_STATS`; the execution trace shows
   that was wrong.)*
 - **A gzip integrity test on a *truncated* slice can never pass, and `zcat | head` fails under
   `pipefail`.** Two ways a "cheap sanity check" rejects a perfectly good FASTQ: `head -c 1M f.gz |
   gzip -t` tests an incomplete gzip member (always fails); and `zcat f.gz | head -1` gives `zcat`
-  SIGPIPE (141), which under `set -o pipefail` fails the pipeline. Capture into a variable instead —
-  `first=$(zcat f.gz 2>/dev/null | head -1)` then test `${first:0:1}` — and rely on an exact
+  SIGPIPE (141), which under `set -o pipefail` fails the pipeline. Capture into a variable instead,
+  `first=$(zcat f.gz 2>/dev/null | head -1)` then test `${first:0:1}`: and rely on an exact
   **byte-size** comparison for integrity. A validator that rejects good data is worse than none: it
   burns the transfer budget re-fetching files that were already correct.
 - **Any long unattended transfer/stage job needs a single-instance lock.** Two copies writing the
   same scratch paths interleave their output; the result still passes a byte-size check, so the
   corruption is *silent*. Guard with `exec 9>/var/lock/<job>.lock; flock -n 9 || exit 0`.
 - **Concurrent Nextflow runs must each have their own working directory.** The session cache lives in
-  `$PWD/.nextflow`, and a bare `-resume` resumes the **most recent** session — which for a second,
+  `$PWD/.nextflow`, and a bare `-resume` resumes the **most recent** session: which for a second,
   overlapping run is the *first* run's, whose LOCK its live driver holds. The second run dies
   instantly with "Unable to acquire lock on session". Give each run its own `cd` (and absolute `-c`
   config paths), and only pass `-resume` when that run's own cache already exists.
 - **`executor.queueSize` is per-run, not per-project.** Two concurrent runs each configured at 40 ask
-  for 80 concurrent VMs — i.e. 80 external IPs against the `IN_USE_ADDRESSES` ceiling of 69 (above).
+  for 80 concurrent VMs: i.e. 80 external IPs against the `IN_USE_ADDRESSES` ceiling of 69 (above).
   When overlapping runs, split the budget (e.g. 15 + 45) so the sum stays under the quota.
-- **Google Batch's server-side `--filter="status.state=SUCCEEDED"` is unreliable — count client-side.**
+- **Google Batch's server-side `--filter="status.state=SUCCEEDED"` is unreliable: count client-side.**
   The same query returned `0`, then `5`, a minute apart, when the true count was `37`. Anything that
   *gates* on a job count (a health check, a cost gate, a "is it safe to proceed" test) must list the
   states and count them locally: `--format="value(status.state)" | grep -c '^SUCCEEDED$'`. A gate
@@ -262,14 +262,14 @@ Scripts are env-var driven (override without editing): `SAMPLESHEET` `OUTDIR` `I
 - **Gate/marker granularity: emit per-item completion markers as each item finishes, not once the
   whole batch does.** A stage-everything-then-signal design blocks the first sample behind the last
   one, defeating any "start the cheapest sample first and evaluate" strategy.
-- **"Pipeline completed successfully" can sit next to `failed=N` — and usually that is fine.** Nextflow
+- **"Pipeline completed successfully" can sit next to `failed=N`: and usually that is fine.** Nextflow
   counts failed *attempts*; a task preempted twice then succeeding shows as 2 failures. But a
   genuinely lost caller shard would silently yield a merged VCF **missing genomic regions**, which no
   candidate list would reveal. Verify completeness before trusting clinical output: all contigs
   present via `bcftools index -s`, and no unexplained multi-Mb holes between consecutive variants.
   Large gaps are expected **only** at centromeres, acrocentric short arms, and heterochromatin
-  (1q12, 9q12, 16q11.2, Yq12) — anywhere else means lost work.
+  (1q12, 9q12, 16q11.2, Yq12): anywhere else means lost work.
 
-- **`$WIN`** — optional Windows-side deliverable folder (a WSL convenience) that `.candidatos` are
+- **`$WIN`**: optional Windows-side deliverable folder (a WSL convenience) that `.candidatos` are
   copied to. **Empty by default**; unset simply means no copy-out and results stay in `$WD`. Set it
-  in `site.env`, never in a tracked file — it embeds a username.
+  in `site.env`, never in a tracked file: it embeds a username.

@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
 #
-# qc_gate.sh — per-SAMPLE quality gate. Decides whether a sample is fit to report.
+# qc_gate.sh: per-SAMPLE quality gate. Decides whether a sample is fit to report.
 #
 # WHY THIS EXISTS
 #   The variant-level flags in candidate-filtering (lowDP, lowGQ, homopolymer) judge individual
 #   calls. Nothing judged the SAMPLE. A contaminated library, a sample swap, or an exome that
 #   simply failed capture would flow through the whole pipeline and produce a confident-looking
-#   candidate list. That is the failure mode most likely to cause harm in routine operation —
+#   candidate list. That is the failure mode most likely to cause harm in routine operation,
 #   far more than a small difference in caller accuracy.
 #
 #   This script fails such a sample loudly, BEFORE anyone reads its candidates.
 #
-# WHAT IT CHECKS (all from the sample's own VCF + optional CRAM/BAM — no extra cloud cost)
-#   1. CALL COUNT      — a collapsed library yields far too few variants; a contaminated or
+# WHAT IT CHECKS (all from the sample's own VCF + optional CRAM/BAM: no extra cloud cost)
+#   1. CALL COUNT     : a collapsed library yields far too few variants; a contaminated or
 #                        badly-mapped one yields far too many.
-#   2. TRANSITION/TRANSVERSION — Ti/Tv is the classic sanity metric. Genome-wide ~2.0-2.1,
+#   2. TRANSITION/TRANSVERSION: Ti/Tv is the classic sanity metric. Genome-wide ~2.0-2.1,
 #                        exome ~2.8-3.3 (exons are enriched for transitions). A value near 0.5
 #                        means random noise, i.e. the calls are mostly artefact.
-#   3. HETEROZYGOSITY  — het/hom-alt ratio. Contamination inflates it (foreign alleles appear
+#   3. HETEROZYGOSITY : het/hom-alt ratio. Contamination inflates it (foreign alleles appear
 #                        heterozygous); a wrong reference or inbreeding deflates it.
-#   4. CONTAMINATION   — proxy: the fraction of het calls with extreme allele balance. A clean
+#   4. CONTAMINATION  : proxy: the fraction of het calls with extreme allele balance. A clean
 #                        sample's hets sit near AB 0.5; contamination drags a tail toward 0.
-#   5. SEX CONCORDANCE — chrX het rate + chrY call count give observed sex; compared with the
+#   5. SEX CONCORDANCE: chrX het rate + chrY call count give observed sex; compared with the
 #                        expected sex when you supply one. Catches sample swaps.
-#   6. COVERAGE        — mean depth over called sites (and over a target BED if given).
+#   6. COVERAGE       : mean depth over called sites (and over a target BED if given).
 #
 # EXIT CODES:  0 = PASS   1 = FAIL (do not report)   2 = WARN (review before reporting)
 #
@@ -31,7 +31,7 @@
 #   ./qc_gate.sh <sample.vcf.gz> [--sex M|F] [--targets targets.bed] [--json out.json]
 #
 #   Thresholds are the DEFAULTS below and are deliberately conservative. A clinical lab must set
-#   its own from its own validation data and record them in the SOP — see validation/SOP.md.
+#   its own from its own validation data and record them in the SOP: see validation/SOP.md.
 set -uo pipefail
 
 VCF="${1:?Usage: $0 <sample.vcf.gz> [--sex M|F] [--targets t.bed] [--json out.json]}"; shift || true
@@ -111,7 +111,7 @@ awk -v v="$MEANDP" -v lo="$QC_MIN_MEAN_DP" 'BEGIN{exit !(v+0 < lo+0)}' && add_fa
 #       inflated a male exome's chrX het rate from 0.090 to 0.169 and pushed it into the
 #       "female" band.
 #   (b) chrY CALL COUNT IS NOT COMPARABLE ACROSS ASSAYS. The same HG002 gave 11,375 chrY
-#       calls by WGS and 57 by exome — a ~200x difference, because capture kits barely
+#       calls by WGS and 57 by exome: a ~200x difference, because capture kits barely
 #       target chrY. An absolute chrY threshold silently means "WGS only". chrY is therefore
 #       NORMALISED per 1,000 autosomal calls and used only to CORROBORATE.
 #
@@ -136,9 +136,9 @@ if [ -n "$EXPECTED_SEX" ]; then
     if [ "$OBSERVED_SEX" = "undetermined" ]; then
         add_warn "sex indeterminate (chrX non-PAR het $XHET falls between $QC_XHET_MALE_MAX and $QC_XHET_FEMALE_MIN; expected $EXPECTED_SEX)"
     elif [ "$OBSERVED_SEX" != "$EXPECTED_SEX" ]; then
-        add_fail "SEX MISMATCH: expected $EXPECTED_SEX, observed $OBSERVED_SEX — possible SAMPLE SWAP"
+        add_fail "SEX MISMATCH: expected $EXPECTED_SEX, observed $OBSERVED_SEX; possible SAMPLE SWAP"
     elif [ "$OBSERVED_SEX" = "M" ] && awk -v y="$YNORM" 'BEGIN{exit !(y+0 < 0.5)}'; then
-        notes+=("chrY yield is low ($YNORM/1000) — normal for capture kits, which barely target chrY")
+        notes+=("chrY yield is low ($YNORM/1000): normal for capture kits, which barely target chrY")
     fi
 fi
 

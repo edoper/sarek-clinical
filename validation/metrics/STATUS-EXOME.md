@@ -1,4 +1,4 @@
-# GIAB EXOME validation — live status
+# GIAB EXOME validation: live status
 
 _updated 2026-07-28 07:10:20Z (checks run hourly)_
 

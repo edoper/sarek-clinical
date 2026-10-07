@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# split_metrics.sh — per-class (SNV / INDEL) precision, recall and F1 for each vcfeval tier.
+# split_metrics.sh: per-class (SNV / INDEL) precision, recall and F1 for each vcfeval tier.
 #
 # RTG's summary.txt reports one combined row. Indel accuracy is always the lower of the two
 # and is the number that actually discriminates between pipelines, so split it out from the
-# tp / fp / fn VCFs vcfeval already wrote. Counting is exact — no re-running of vcfeval.
+# tp / fp / fn VCFs vcfeval already wrote. Counting is exact: no re-running of vcfeval.
 #
 #   precision = TP_call     / (TP_call     + FP)      # of what we called, how much is real
 #   recall    = TP_baseline / (TP_baseline + FN)      # of what is true, how much we found

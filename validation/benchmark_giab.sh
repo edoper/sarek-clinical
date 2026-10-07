@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# benchmark_giab.sh — compare the consensus VCF against the GIAB HG002 v4.2.1 truth set
+# benchmark_giab.sh: compare the consensus VCF against the GIAB HG002 v4.2.1 truth set
 # with RTG vcfeval, restricted to GIAB's high-confidence regions.
 #
 # Evaluates several CONFIDENCE TIERS of the same consensus file, because that is the
@@ -31,7 +31,7 @@ done
 
 # vcfeval needs a single sample and PASS-only comparison semantics we control ourselves.
 run_eval() { # <label> <query.vcf.gz> [extra-bed]
-    # NOTE: separate statements — `local` expands ALL its arguments before assigning
+    # NOTE: separate statements; `local` expands ALL its arguments before assigning
     # any of them, so `dir="$OUT/$label"` on the same line sees $label unbound under set -u.
     local label="$1" q="$2" bed="${3:-$CONF_BED}"
     local dir="$OUT/$label"
@@ -46,7 +46,7 @@ run_eval() { # <label> <query.vcf.gz> [extra-bed]
 echo "== building confidence tiers from the consensus VCF =="
 bcftools view -i 'NCALLERS>=2' "$CONS" -Oz -o "$OUT/tier.ncallers2.vcf.gz" && tabix -f -p vcf "$OUT/tier.ncallers2.vcf.gz"
 bcftools view -i 'CONF="HIGH"'  "$CONS" -Oz -o "$OUT/tier.confhigh.vcf.gz"  && tabix -f -p vcf "$OUT/tier.confhigh.vcf.gz"
-# DeepVariant alone — the backbone, and the most informative baseline: it tells you whether
+# DeepVariant alone: the backbone, and the most informative baseline: it tells you whether
 # the >=2-caller rescue arm is adding value or just false positives.
 bcftools view -i 'CALLERS~"deepvariant"' "$CONS" -Oz -o "$OUT/tier.dvonly.vcf.gz" && tabix -f -p vcf "$OUT/tier.dvonly.vcf.gz"
 printf "  union: %s | NCALLERS>=2: %s | CONF=HIGH: %s\n" \
@@ -77,7 +77,7 @@ if [ -s "$EXOME_BED" ]; then
     echo "  exome ∩ high-conf regions: $(wc -l < "$OUT/conf_exome.bed")"
     run_eval union-exome "$CONS" "$OUT/conf_exome.bed" || true
 else
-    echo "  (no exome BED at $EXOME_BED — skipping the exome-restricted row)"
+    echo "  (no exome BED at $EXOME_BED: skipping the exome-restricted row)"
 fi
 
 if [ -n "$PANEL_BED" ] && [ -s "$PANEL_BED" ]; then

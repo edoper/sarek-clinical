@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# consensus_from_results.sh — bridge step between cloud calling and local interpretation.
+# consensus_from_results.sh: bridge step between cloud calling and local interpretation.
 # For each sample it pulls the four small per-caller VCFs from the bucket and runs the
-# canonical consensus.sh (reused from this repo — NOT duplicated here), producing
+# canonical consensus.sh (reused from this repo: NOT duplicated here), producing
 # <sample>.consensus.vcf.gz ready for vep_annotate.sh + candidate-filtering.
 #
 # Consensus is a ~seconds bcftools step on tiny exome VCFs, so it runs locally on the
@@ -25,17 +25,17 @@ CONSENSUS_SH="${CONSENSUS_SH:-$SAREK_REPO/consensus.sh}"        # canonical scri
 # MUST match the reference the calls were made against (GATK.GRCh38 =
 # Homo_sapiens_assembly38, INCLUDING ALT/decoy contigs). The GENCODE primary-assembly
 # fasta lacks ALT contigs, so `bcftools norm -f` fails on any call on an ALT contig
-# (e.g. chr7_KI270803v1_alt) — which the Twist coding targets include.
+# (e.g. chr7_KI270803v1_alt): which the Twist coding targets include.
 REF="${REF:-$SAREK_REPO/refs/Homo_sapiens_assembly38.fasta}"
 
 # A resume guard must invalidate partial outputs, not merely test for existence.
 # A killed run (Ctrl-C, WSL shutdown) can leave a truncated .consensus.vcf.gz that
 # `-s` accepts as done, silently shipping an incomplete variant list to VEP and
 # candidate-filtering. htslib terminates every bgzip file with a fixed 28-byte BGZF
-# EOF block, so checking for it — plus the .tbi, which consensus.sh renames into
-# place only after a successful run — is a cheap, exact completeness test.
+# EOF block, so checking for it: plus the .tbi, which consensus.sh renames into
+# place only after a successful run: is a cheap, exact completeness test.
 BGZF_EOF="1f8b08040000000000ff0600424302001b0003000000000000000000"
-complete_vcf() {  # <path.vcf.gz> — true only if the VCF is whole AND indexed
+complete_vcf() {  # <path.vcf.gz>: true only if the VCF is whole AND indexed
     [[ -s "$1" && -s "$1.tbi" ]] || return 1
     [[ "$(tail -c 28 "$1" | od -An -tx1 | tr -d ' \n')" == "$BGZF_EOF" ]]
 }
@@ -47,7 +47,7 @@ mkdir -p "$LOCAL_OUT"
 
 # Find the published VCF for a caller/sample under the Sarek outdir (filenames vary
 # slightly by caller, e.g. strelka.variants / haplotypecaller.filtered).
-find_vcf() {  # <caller> <sample> — prefer filtered > variants > plain; never genome/gvcf
+find_vcf() {  # <caller> <sample>: prefer filtered > variants > plain; never genome/gvcf
     local all f
     all=$(gcloud storage ls "$OUTDIR/variant_calling/$1/$2/**.vcf.gz" 2>/dev/null | grep -viE '\.(g|genome)\.vcf\.gz$')
     for pat in 'filtered\.vcf\.gz$' 'variants\.vcf\.gz$' '\.vcf\.gz$'; do
@@ -72,10 +72,10 @@ trap cleanup_tmp EXIT
 
 for s in $samples; do
     out="$LOCAL_OUT/$s.consensus.vcf.gz"
-    if complete_vcf "$out"; then echo "=== $s (already done — skip) ==="; continue; fi
+    if complete_vcf "$out"; then echo "=== $s (already done: skip) ==="; continue; fi
     # Present but incomplete: clear the leftovers so this sample is genuinely redone.
     if [[ -e "$out" || -e "$out.partial" ]]; then
-        echo "  NOTE: $s has a partial/unindexed consensus VCF — discarding and re-running"
+        echo "  NOTE: $s has a partial/unindexed consensus VCF; discarding and re-running"
         rm -f "$out" "$out.tbi" "$out.partial" "$out.partial.tbi"
     fi
     echo "=== $s ==="
@@ -86,9 +86,9 @@ for s in $samples; do
         # `|| uri=""`: find_vcf returns non-zero when nothing matches, and under set -e a
         # bare assignment would abort the WHOLE cohort instead of skipping this sample.
         uri=$(find_vcf "$caller" "$s") || uri=""
-        if [[ -z "$uri" ]]; then echo "  WARN: no $caller VCF for $s — skipping sample"; ok=0; break; fi
+        if [[ -z "$uri" ]]; then echo "  WARN: no $caller VCF for $s; skipping sample"; ok=0; break; fi
         if ! gcloud storage cp "$uri" "$uri.tbi" "$tmp/" 2>/dev/null; then
-            echo "  WARN: download failed for $caller VCF of $s — skipping sample"; ok=0; break
+            echo "  WARN: download failed for $caller VCF of $s; skipping sample"; ok=0; break
         fi
         vcf[$caller]="$tmp/$(basename "$uri")"
     done
@@ -101,7 +101,7 @@ for s in $samples; do
         -c strelka="${vcf[strelka]}" \
         -c freebayes="${vcf[freebayes]}" \
         -c haplotypecaller="${vcf[haplotypecaller]}"; then
-        echo "  WARN: consensus failed for $s — continuing"; FAILED_SAMPLES+=("$s")
+        echo "  WARN: consensus failed for $s; continuing"; FAILED_SAMPLES+=("$s")
         rm -f "$out" "$out.tbi" "$out.partial" "$out.partial.tbi"
     fi
     rm -rf "$tmp"

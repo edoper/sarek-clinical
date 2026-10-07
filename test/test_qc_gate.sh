@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test_qc_gate.sh — regression test for the per-sample QC gate.
+# test_qc_gate.sh: regression test for the per-sample QC gate.
 #
 # A gate that never fails is worse than no gate, and a gate that fails GOOD samples is
 # worse still: it trains people to ignore it. Both directions are tested here.

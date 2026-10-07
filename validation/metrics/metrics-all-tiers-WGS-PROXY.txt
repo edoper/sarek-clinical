@@ -1,4 +1,4 @@
-# PROVENANCE WARNING — read before quoting these numbers.
+# PROVENANCE WARNING: read before quoting these numbers.
 #
 # The `union-exome` and `exome-dvonly` rows below are the WGS PROXY: the whole-genome
 # HG002 run restricted to the capture BED, NOT the real exome path. They overstate

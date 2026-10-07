@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Live COST bar for a BGE Sarek Batch run — reconstructs accrued Google Batch Spot
+# Live COST bar for a BGE Sarek Batch run: reconstructs accrued Google Batch Spot
 # spend from the job records (control-plane listing only: NO compute, NO egress).
 # Live:   watch -n 60 <repo>/bge_cost.sh
 #
@@ -72,5 +72,5 @@ if [ -n "${FRAC:-}" ]; then
 fi
 printf "cost Spot [%s] \$%.2f / \$%.0f budget (%d%%) | %d jobs, %d run, %d fail%s\n" \
   "$bar" "$cost" "$BUDGET" "$pct" "$njobs" "$running" "$failed" "$proj"
-[ -n "$unknown" ] && printf "  (unpriced machine types:%s — extend SPEC[] in bge_cost.sh)\n" "$unknown"
+[ -n "$unknown" ] && printf "  (unpriced machine types:%s: extend SPEC[] in bge_cost.sh)\n" "$unknown"
 exit 0

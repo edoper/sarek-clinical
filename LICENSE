@@ -23,5 +23,5 @@ SOFTWARE.
 ---
 
 NOTE ON CLINICAL USE: this software has not been validated for diagnostic use.
-See README section 6 — a formal accuracy validation (e.g. against a GIAB
+See README section 6: a formal accuracy validation (e.g. against a GIAB
 reference sample) is required before results are used for patient care.

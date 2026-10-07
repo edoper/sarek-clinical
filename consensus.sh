@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 #
-# consensus.sh — Clinical germline UNION consensus (DeepVariant + rescued concordant)
+# consensus.sh: Clinical germline UNION consensus (DeepVariant + rescued concordant)
 # -----------------------------------------------------------------------------
 # Builds one clinically-reportable VCF for a sample from its per-caller germline
 # VCFs (nf-core/sarek: DeepVariant, Strelka2, FreeBayes, HaplotypeCaller):
 #
-#   1. BACKBONE  — every DeepVariant call is kept, with DeepVariant's genotype
+#   1. BACKBONE : every DeepVariant call is kept, with DeepVariant's genotype
 #                  fields (GT/GQ/DP/AD/VAF). GT_SOURCE=deepvariant.
-#   2. RESCUE    — any variant DeepVariant did NOT call but >=2 of the OTHER
+#   2. RESCUE   : any variant DeepVariant did NOT call but >=2 of the OTHER
 #                  callers did, is added back. Its genotype is borrowed from
 #                  Strelka2 if Strelka2 called it, otherwise HaplotypeCaller
 #                  (FreeBayes counts toward concordance but is never a genotype
 #                  donor). GT_SOURCE=strelka|haplotypecaller. Rescued records
-#                  carry GT/GQ/DP/AD (no VAF — those callers don't emit it; AD
+#                  carry GT/GQ/DP/AD (no VAF: those callers don't emit it; AD
 #                  is kept so allele fraction stays derivable).
 #
 # Every variant is annotated with:
 #   CALLERS=<list>   NCALLERS=<int>   CONF=HIGH(>=3)/MEDIUM(2)/LOW(1)   GT_SOURCE=<caller>
 #
-# Nothing else is dropped/tiered here — downstream candidate-filtering decides
+# Nothing else is dropped/tiered here: downstream candidate-filtering decides
 # strictness (e.g. on NCALLERS/CONF). CONF reflects CROSS-CALLER CONCORDANCE,
 # not absolute quality (a DeepVariant-only LOW call is unconfirmed, not wrong).
 #
@@ -35,8 +35,8 @@ Usage:
                -c haplotypecaller=HAPLOTYPECALLER.vcf.gz \
                [-s SAMPLE_ID] [-f 'PASS,.'] [-w WORKDIR]
 
-  -r  Reference FASTA (indexed .fai alongside) — used for indel left-alignment.
-  -d  DeepVariant VCF (bgzipped) — the genotyped backbone. Required.
+  -r  Reference FASTA (indexed .fai alongside): used for indel left-alignment.
+  -d  DeepVariant VCF (bgzipped): the genotyped backbone. Required.
   -o  Output prefix. Writes <prefix>.consensus.vcf.gz (+ .tbi) and <prefix>.consensus.log.
   -c  name=path for each OTHER caller (repeatable). Recognized genotype donors,
       in priority order: 'strelka' then 'haplotypecaller'. 'freebayes' counts

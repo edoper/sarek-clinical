@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# run_bge_annotate_filter.sh — feed the local BGE consensus VCFs into VEP + candidate-filtering.
+# run_bge_annotate_filter.sh: feed the local BGE consensus VCFs into VEP + candidate-filtering.
 #   1. VEP-annotate each <repo>/consensus-cohort/<sample>.consensus.vcf.gz
 #      -> <WD>/<sample>.germline.vep.vcf.gz   (resumable; one isolated workdir so the
 #         BGE samples don't collide with other VEP VCFs in candidate-filtering).
@@ -25,13 +25,13 @@ CONS_DIR="${CONS_DIR:-$SAREK_REPO/consensus-cohort}"
 WD="${WD:-$CF/bge-cohort}"   # CF + WIN come from site.sh (WIN empty => no copy-out)
 VEP="$CF/vep_annotate.sh"
 [ -d "$CF" ] || { echo "ERROR: candidate-filtering repo not found at '$CF'."; echo "       Set CF=/path/to/candidate-filtering (or put it beside this repo)."; exit 1; }
-[ -f "$VEP" ] || { echo "ERROR: $VEP not found — is '$CF' really the candidate-filtering repo?"; exit 1; }
+[ -f "$VEP" ] || { echo "ERROR: $VEP not found; is '$CF' really the candidate-filtering repo?"; exit 1; }
 mkdir -p "$WD"
 
 # Isolated workdir needs the code + reference config (filtering_r.pl reads them from cwd).
 # Link whatever reference files candidate-filtering currently ships, rather than a fixed
 # list: the panel is versioned (g4e-2025 -> g4e-2026 -> ...) and new tables get added
-# (gnomad-mis-constraint.txt drives ACMG PP2). A hardcoded list silently degrades — a
+# (gnomad-mis-constraint.txt drives ACMG PP2). A hardcoded list silently degrades: a
 # dangling panel link, or a missing table that just switches a criterion off.
 for f in filtering_r.pl parse_pangolin.pl site.sh; do
     [ -e "$CF/$f" ] && ln -sf "$CF/$f" "$WD/$f"
@@ -55,7 +55,7 @@ for v in "${VCFS[@]}"; do
     s=$(basename "$v" .consensus.vcf.gz)
     out="$WD/$s.germline.vep.vcf.gz"
     if complete_vcf "$out"; then
-        :                                                  # already annotated, whole — skip
+        :                                                  # already annotated, whole; skip
     else
         rm -f "$out" "$out.tbi"
         if ! bash "$VEP" "$v" "$out" > "$WD/vep.$s.log" 2>&1; then
@@ -68,7 +68,7 @@ for v in "${VCFS[@]}"; do
 done
 echo "[annotate] complete: $((total-${#failed[@]}))/$total ok${failed:+; failed: ${failed[*]}}"
 if [ "${#failed[@]}" -gt 0 ]; then
-    echo "ERROR: ${#failed[@]} sample(s) failed VEP — NOT filtering a partial cohort. Fix and re-run (resumable)."
+    echo "ERROR: ${#failed[@]} sample(s) failed VEP; NOT filtering a partial cohort. Fix and re-run (resumable)."
     exit 1
 fi
 
@@ -76,12 +76,12 @@ fi
 echo "[filter] running candidate-filtering in $WD ..."
 STAMP="$WD/.filter_started"; : > "$STAMP"
 if ! WORKDIR="$WD" bash "$CF/run_filtering.sh"; then
-    echo "ERROR: run_filtering.sh failed — nothing copied out (tables in $WD may be stale)."
+    echo "ERROR: run_filtering.sh failed; nothing copied out (tables in $WD may be stale)."
     exit 1
 fi
 
 # ── Step 3: collect candidatos to the deliverable folder ──
-# WIN is a WSL convenience (a Windows-side folder). Unset — the normal case off WSL —
+# WIN is a WSL convenience (a Windows-side folder). Unset: the normal case off WSL,
 # means there is nowhere to copy to, so the results simply stay in $WD.
 OUT_NAME="${OUT_NAME:-bge-candidatos}"          # override for other cohorts (e.g. epigen-candidatos)
 # Only tables written by this run: an older table in a reused $WD (another panel,

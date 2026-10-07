@@ -1,7 +1,7 @@
 # Source this to load the Sarek/Nextflow toolchain plus this deployment's settings:
 #   source /path/to/sarek-clinical/env.sh
 #
-# Site settings (GCP project, bucket, local paths) live in site.sh — override them by
+# Site settings (GCP project, bucket, local paths) live in site.sh: override them by
 # exporting first, or in an untracked site.env next to it. See site.sh for the list.
 # The Nextflow configs read the same SAREK_* variables, so one place retargets everything.
 

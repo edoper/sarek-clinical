@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# run_epigen_wes.sh — launch nf-core/sarek for the 20 EPIGEN exomes FROM FASTQ on
+# run_epigen_wes.sh: launch nf-core/sarek for the 20 EPIGEN exomes FROM FASTQ on
 # Google Batch (Spot). Full path: align (BWA) -> markdup -> [BQSR skipped] -> 4-caller
 # variant calling over the exome target. Per-caller VCFs land in the bucket; build the
 # consensus with consensus_from_results.sh afterwards, then candidate-filtering locally.
 #
 # Cost lever notes. MEASURED: 20 exomes from FASTQ = $8.14 of Spot compute (834 vCPU-hours,
-# reconstructed from Batch job records). An earlier revision of this header guessed "$25-40" —
+# reconstructed from Batch job records). An earlier revision of this header guessed "$25-40",
 # that was 3-5x too high. Exomes are ~13x cheaper per sample than WGS ($0.41 vs $5.46).
 #   * Spot VMs (gcb.config), exome-scoped (--wes --intervals) -> minimal compute
 #   * --skip_tools baserecalibrator : BQSR adds cost/time and is unnecessary with a
@@ -23,7 +23,7 @@ SAMPLESHEET="${SAMPLESHEET:-samplesheet-epigen.csv}"
 OUTDIR="${OUTDIR:-$SAREK_BUCKET/epigen-wes/results}"
 WORKDIR="${WORKDIR:-$SAREK_BUCKET/epigen-wes/work}"
 # GRCh38, chr-prefixed. Default = the exact Agilent SureSelect V6 r2 (S07604514, hg38)
-# Padded BED — kit-exact for the EPIGEN capture. 187k intervals / 100.8 Mb (padded).
+# Padded BED: kit-exact for the EPIGEN capture. 187k intervals / 100.8 Mb (padded).
 # Fallback: $SAREK_BUCKET/bge-wes/targets/twist_coding_targets.bed (Twist coding).
 INTERVALS="${INTERVALS:-$SAREK_BUCKET/epigen-wes/targets/S07604514_V6r2_Padded.GRCh38.bed}"  # Agilent SureSelect V6 r2 (kit-exact)
 

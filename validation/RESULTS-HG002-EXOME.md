@@ -1,4 +1,4 @@
-# GIAB validation results — HG002 EXOME (the assay actually delivered)
+# GIAB validation results: HG002 EXOME (the assay actually delivered)
 
 **Run date:** 2026-07-28 · **Truth set:** GIAB v4.2.1, GRCh38 · **Input:** GIAB HG002 exome,
 Oslo University Hospital, **Agilent SureSelect V5**, Illumina, re-aligned to GRCh38 by the pipeline
@@ -7,12 +7,12 @@ deployment's clinical BED) · **Comparator:** RTG `vcfeval` · **Cost:** $0.78 �
 
 ## Why this run exists
 
-The WGS validation reports an "exome-restricted" row — WGS reads filtered to a capture BED. That is
+The WGS validation reports an "exome-restricted" row: WGS reads filtered to a capture BED. That is
 **not** an exome: it has none of the capture bias, duplicate structure or uneven target coverage of
 a real hybrid-capture library. This run tests the real thing, and the difference turned out to be
 large enough to matter clinically.
 
-## Headline — the WGS proxy was optimistic, badly so for indels
+## Headline: the WGS proxy was optimistic, badly so for indels
 
 Same panel genes, same truth set, same pipeline:
 
@@ -21,7 +21,7 @@ Same panel genes, same truth set, same pipeline:
 | WGS reads restricted to the panel | 0.9984 | **0.9934** |
 | **REAL exome, same panel region** | 0.9955 | **0.9198** |
 
-**SNV performance holds up. Indel performance does not** — F1 falls from 0.9934 to 0.9198 in the
+**SNV performance holds up. Indel performance does not**: F1 falls from 0.9934 to 0.9198 in the
 same genes. If you had relied on the WGS number to describe your exome and BGE arms, you would have
 overstated indel sensitivity by a wide margin.
 
@@ -44,17 +44,17 @@ overstated indel sensitivity by a wide margin.
 | union | SNV | 0.9839 | 0.9461 | 0.9646 |
 | union | INDEL | 0.9242 | 0.8584 | 0.8901 |
 
-**DeepVariant alone again beats the union**, consistent with the WGS finding — and by more on indels
+**DeepVariant alone again beats the union**, consistent with the WGS finding: and by more on indels
 here (0.9315 vs 0.9198), because the rescue arm adds 8 indel false positives to gain 3 true ones.
 
 ## Read these caveats before using any number above
 
-1. **Kit mismatch — every recall figure is a LOWER BOUND.** The reference exome was captured with
+1. **Kit mismatch: every recall figure is a LOWER BOUND.** The reference exome was captured with
    **V5**; calling used the **V6** padded BED. Regions present in V6 but not V5 have no reads at
    all, so they generate guaranteed false negatives that are the kit's doing, not the pipeline's.
    The only way to remove this confound is a reference exome captured with your own kit.
 2. **The indel estimate is imprecise.** It rests on 171 true indels: recall 0.9240, 95% CI
-   **[0.8743, 0.9550]** — 8.1 pp wide. The *direction* (exome indels are much worse than WGS
+   **[0.8743, 0.9550]**: 8.1 pp wide. The *direction* (exome indels are much worse than WGS
    indels) is solid; the *magnitude* is not. SNV recall 0.9939 has a CI of [0.9890, 0.9966], 0.8 pp.
 3. **The reference exome is from 2015.** Older chemistry and read length than anything you run now.
    Some of the gap is the data, not the pipeline.
@@ -84,12 +84,12 @@ Precisely: **two of three arms are validated.**
 |---|---|---|
 | WGS from FASTQ | **yes** | `RESULTS-HG002.md` |
 | Exome from FASTQ (Agilent-style) | **yes**, bounded by the V5/V6 kit mismatch | this file |
-| **BGE exome from CRAM** | **NO** | — |
+| **BGE exome from CRAM** | **NO** | - |
 
 BGE is the main production arm and it is **not** covered. GIAB publishes no Twist/BGE-captured
 reference sample (only the Agilent V5 exome used here and an Ion Torrent exome), so no public data
-exists to validate it directly. The direction of the exome finding — capture data calls indels
-worse than PCR-free WGS — should transfer to BGE; the magnitude probably does not, and BGE likely
+exists to validate it directly. The direction of the exome finding: capture data calls indels
+worse than PCR-free WGS: should transfer to BGE; the magnitude probably does not, and BGE likely
 performs better (modern Twist chemistry, no kit mismatch, Broad-aligned CRAM input).
 
 **The fix is cheap and decisive: include a GIAB sample as a control in the next BGE batch.** One
@@ -98,5 +98,5 @@ about $0.22 of compute on a batch you are running anyway.
 
 ## Reproducing
 
-`validation/run_giab_exome.sh` — streams the reference exome BAM from GIAB, converts to FASTQ,
+`validation/run_giab_exome.sh`: streams the reference exome BAM from GIAB, converts to FASTQ,
 runs the pipeline in `--wes` mode, applies the QC gate, and benchmarks. ~2 h, **$0.78**.

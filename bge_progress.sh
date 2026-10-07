@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Zero-cost progress for the BGE Sarek cohort run: reads the local Nextflow log and
-# lists the result bucket (object listing only — no compute/egress). Run once, or live:
+# lists the result bucket (object listing only: no compute/egress). Run once, or live:
 #     watch -n 60 <repo>/bge_progress.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/site.sh"
 LOG="${LOG:-$SAREK_REPO/bge-cohort.log}"

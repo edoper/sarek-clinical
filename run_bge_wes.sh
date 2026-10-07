@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# run_bge_wes.sh — launch nf-core/sarek WES variant-calling (from CRAM) on Google Batch.
+# run_bge_wes.sh: launch nf-core/sarek WES variant-calling (from CRAM) on Google Batch.
 # The heavy step (4 callers over the exome target). Per-caller VCFs land in the bucket;
 # build the consensus with consensus_from_results.sh afterwards.
 #

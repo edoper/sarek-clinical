@@ -15,7 +15,7 @@ def classify(cid):
     return cid, "P"
 rows = list(csv.DictReader(open(TSV), delimiter="\t"))
 fam_tsv = open("families.tsv", "w")
-fam_tsv.write("# auto-built from %s — family\\trole\\tsex\\tcram_uri (staged)\n" % TSV.split("/")[-1])
+fam_tsv.write("# auto-built from %s: family\\trole\\tsex\\tcram_uri (staged)\n" % TSV.split("/")[-1])
 copy_list = open("/tmp/cram_srcs.txt", "w")
 n = 0
 for r in rows:

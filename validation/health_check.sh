@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# health_check.sh — one hourly status snapshot of the GIAB validation run.
+# health_check.sh: one hourly status snapshot of the GIAB validation run.
 # Zero cost: only lists Batch/Compute control-plane state (no compute, no egress).
 #
-# Writes STATUS.md locally and cp -f's it to $WIN (never append — drvfs append-caching
+# Writes STATUS.md locally and cp -f's it to $WIN (never append: drvfs append-caching
 # hides live progress from the Windows side).
 #
 # HARD BUDGET GUARD: the user authorised <= $15 total. If reconstructed spend crosses
@@ -40,7 +40,7 @@ errs=$(grep -ciE 'ERROR ~|Execution aborted|Pipeline completed with errors' $LOG
 finished=$(grep -c 'Pipeline completed successfully' $LOG 2>/dev/null || true)
 
 {
-  echo "# $RUN_NAME — live status"
+  echo "# $RUN_NAME: live status"
   echo
   echo "_updated $(date -u '+%Y-%m-%d %H:%M:%SZ') (checks run hourly)_"
   echo
@@ -69,7 +69,7 @@ finished=$(grep -c 'Pipeline completed successfully' $LOG 2>/dev/null || true)
 # --- hard budget guard -------------------------------------------------------
 over=$(awk -v s="$spend" -v k="$KILL_AT" 'BEGIN{print (s+0 > k+0) ? 1 : 0}')
 if [ "$over" = "1" ]; then
-    echo "BUDGET GUARD TRIPPED: \$$spend > \$$KILL_AT — cancelling run" | tee -a guard.log
+    echo "BUDGET GUARD TRIPPED: \$$spend > \$$KILL_AT; cancelling run" | tee -a guard.log
     for p in $(pgrep -f 'nextflow.*sarek' 2>/dev/null); do kill "$p" 2>/dev/null; done
     for j in $(timeout 90 gcloud batch jobs list --location=us-central1 \
                  --filter="createTime>=\"$SINCE\" AND status.state=RUNNING" \

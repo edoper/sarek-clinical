@@ -1,4 +1,4 @@
-# Family / CRAM table — one row per individual. Tab-separated. '#' and blanks ignored.
+# Family / CRAM table: one row per individual. Tab-separated. '#' and blanks ignored.
 # Columns: family <tab> role(P/M/F) <tab> sex(XX/XY/NA) <tab> cram_uri <tab> [crai_uri]
 # sample name becomes <family>-<role> (e.g. FAM01-P) for candidate-filtering auto-discovery.
 #
