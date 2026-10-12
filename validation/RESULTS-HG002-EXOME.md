@@ -5,6 +5,11 @@ Oslo University Hospital, **Agilent SureSelect V5**, Illumina, re-aligned to GRC
 from FASTQ (`--step mapping --wes`) · **Calling intervals:** SureSelect **V6** padded (this
 deployment's clinical BED) · **Comparator:** RTG `vcfeval` · **Cost:** $0.78 · **QC gate:** PASS
 
+> **Update 2026-10-12: the rescue arm analysed below was REMOVED from `consensus.sh`.** The
+> consensus now outputs DeepVariant calls only, with the other callers as votes
+> (`CALLERS`/`NCALLERS`/`CONF`; no `GT_SOURCE`). Re-scored on the new code: fair panel SNV F1 **0.9961**, INDEL F1 **0.9315** (the DeepVariant-alone rows below). The analysis
+> below is kept as the record of why.
+
 ## Why this run exists
 
 The WGS validation reports an "exome-restricted" row: WGS reads filtered to a capture BED. That is
@@ -100,3 +105,8 @@ about $0.22 of compute on a batch you are running anyway.
 
 `validation/run_giab_exome.sh`: streams the reference exome BAM from GIAB, converts to FASTQ,
 runs the pipeline in `--wes` mode, applies the QC gate, and benchmarks. ~2 h, **$0.78**.
+
+## Re-score 2026-10-12
+
+See `RESULTS-HG002.md`, section *Re-score 2026-10-12*: fair panel SNV F1 **0.9961**, INDEL F1 **0.9315**;
+whole V6 capture SNV 0.9680, INDEL 0.9014.

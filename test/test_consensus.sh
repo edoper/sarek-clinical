@@ -4,11 +4,12 @@
 # consensus stage. Synthetic data only (no patient data, no cloud, no network);
 # runs in ~30s on a laptop. Requires bcftools, bgzip, tabix, samtools, python3.
 #
-#   1. CONSENSUS RULE: DeepVariant backbone + rescue of variants >=2 OTHER callers
-#      agreed on, genotype borrowed from Strelka2 else HaplotypeCaller, single-caller
-#      non-DeepVariant sites dropped. Guards the invariants documented in consensus.sh
-#      (notably `--rm-dup exact`, which a well-meaning switch to `all` would break by
-#      collapsing just-split multiallelics).
+#   1. CONSENSUS RULE: the output holds DeepVariant calls ONLY, each annotated with
+#      CALLERS/NCALLERS/CONF from the other callers' votes. A site found only by other
+#      callers (any number of them) is never emitted: the former rescue arm is gone and
+#      must stay gone. Also guards the invariants documented in consensus.sh (notably
+#      `--rm-dup exact`, which a well-meaning switch to `all` would break by collapsing
+#      just-split multiallelics, and the carrier filter after the split).
 #
 #   2. CRASH SAFETY: consensus.sh must never leave a truncated VCF at its FINAL output
 #      path, and the resume guard in consensus_from_results.sh must reject anything that
@@ -40,7 +41,7 @@ complete_vcf() {
 }
 
 # ───────────────────────── test 1: consensus rule ─────────────────────────
-echo "== test 1: consensus rule (backbone + rescue + drops) =="
+echo "== test 1: consensus rule (DeepVariant calls only, other callers vote) =="
 { echo ">chr1"
   python3 -c "
 import random
@@ -67,12 +68,11 @@ VAF='##FORMAT=<ID=VAF,Number=A,Type=Float,Description="Alt allele fraction">
 row() { printf 'chr1\t%s\t.\t%s\t%s\t50\tPASS\t.\t%s\t%s\n' "$1" "$(b "$1")" "$(a "$1")" "$2" "$3"; }
 a2() { case "$(b "$1")" in A) echo C;; T) echo G;; C) echo A;; G) echo T;; esac; }  # 2nd ALT, != REF and != a()
 
-# 100 = all four | 200 = DeepVariant only | 300 = STR+HC+FB (rescue via strelka)
-# 400 = HC+FB (rescue via haplotypecaller) | 500 = FB only, 600 = STR only  -> both DROPPED
+# 100 = all four | 200 = DeepVariant only
+# 300 = STR+HC+FB, 400 = HC+FB, 500 = FB only, 600 = STR only  -> all ABSENT (no DeepVariant call)
 # 700 = DeepVariant lists ALT=a,a2 but genotypes 0/2 (carries a2 only). After the split the
-#       a-allele record is 0/0: it must be DROPPED, not counted as a DeepVariant call, so the
-#       a-allele that Strelka2+HC DO call is rescued (strelka GT, NCALLERS=2) instead of
-#       being reported with DeepVariant's 0/0. The a2 allele stays as a DV-only call.
+#       a-allele record is 0/0: it must be DROPPED (not emitted as a DeepVariant "call"), even
+#       though Strelka2+HC call it. The a2 allele stays as a DeepVariant-only call (NCALLERS=1).
 { hdr "$VAF"; row 100 "GT:GQ:DP:AD:VAF" "0/1:99:30:15,15:0.5"
               row 200 "GT:GQ:DP:AD:VAF" "1/1:80:25:0,25:1.0"
               printf 'chr1\t700\t.\t%s\t%s,%s\t50\tPASS\t.\tGT:GQ:DP:AD:VAF\t0/2:60:30:15,0,15:0.0,0.5\n' "$(b 700)" "$(a 700)" "$(a2 700)"
@@ -94,20 +94,19 @@ for f in dv str hc fb; do tabix -f -p vcf "$f.vcf.gz"; done
 mkdir -p out
 "$CONSENSUS_SH" -r ref.fa -d dv.vcf.gz -o out/S1 \
   -c strelka=str.vcf.gz -c freebayes=fb.vcf.gz -c haplotypecaller=hc.vcf.gz >/dev/null 2>&1
-bcftools query -f '%POS\t%INFO/NCALLERS\t%INFO/CONF\t%INFO/GT_SOURCE\t[%GT]\n' out/S1.consensus.vcf.gz > got.txt
+bcftools query -f '%POS\t%INFO/NCALLERS\t%INFO/CONF\t%INFO/CALLERS\t[%GT]\n' out/S1.consensus.vcf.gz > got.txt
 bcftools query -f '%POS\t%ALT\n' out/S1.consensus.vcf.gz | awk -v x="$(a 700)" '$1==700 && $2==x' > got700a.txt
 cat > want.txt <<'EOF'
-100	4	HIGH	deepvariant	0/1
+100	4	HIGH	deepvariant,strelka,freebayes,haplotypecaller	0/1
 200	1	LOW	deepvariant	1/1
-300	3	HIGH	strelka	0/1
-400	2	MEDIUM	haplotypecaller	0/1
-700	2	MEDIUM	strelka	0/1
 700	1	LOW	deepvariant	0/1
 EOF
-if diff -u want.txt got.txt >/dev/null; then ok "backbone+rescue correct; single-caller sites 500/600 dropped"
+if diff -u want.txt got.txt >/dev/null; then ok "DeepVariant calls only, votes correct; sites 300-600 (other callers only) absent"
 else bad "consensus content mismatch:"; diff -u want.txt got.txt || true; fi
-[[ -s got700a.txt ]] && ok "DeepVariant 0/0 (split 0/2) did not block the rescue of the allele other callers made" \
-    || bad "allele genotyped 0/0 by DeepVariant after the split is missing"
+[[ -s got700a.txt ]] && bad "allele DeepVariant genotyped 0/0 (split 0/2) was emitted" \
+    || ok "DeepVariant 0/0 after the split (0/2 site) not emitted, even though Strelka2+HC call it"
+bcftools view -h out/S1.consensus.vcf.gz | grep -q 'ID=GT_SOURCE' && bad "GT_SOURCE still declared in the header" \
+    || ok "no GT_SOURCE tag (every call is DeepVariant's)"
 [[ -s out/S1.consensus.vcf.gz.tbi ]]      && ok "output indexed"          || bad "no .tbi written"
 [[ ! -e out/S1.consensus.vcf.gz.partial ]] && ok "no .partial left behind" || bad ".partial leaked on success"
 
@@ -122,7 +121,7 @@ cp out/S1.consensus.vcf.gz U.vcf.gz     # data present, never indexed
 complete_vcf U.vcf.gz && bad "unindexed VCF accepted" || ok "unindexed VCF rejected"
 
 # ─────────────────── test 3: no partial at the final path ───────────────────
-# Needs enough variants that the final concat|sort write window is observable.
+# Needs enough variants that the final sort write window is observable.
 # Kill the whole process group the instant the first output file appears: that is
 # mid-write by construction, so this is deterministic rather than a timing race.
 echo "== test 3: crash mid-write leaves the final path clean =="

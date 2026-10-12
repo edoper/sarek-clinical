@@ -3,7 +3,7 @@
 # with RTG vcfeval, restricted to GIAB's high-confidence regions.
 #
 # Evaluates several CONFIDENCE TIERS of the same consensus file, because that is the
-# decision the pipeline defers downstream: the union is most sensitive, NCALLERS>=2 and
+# decision the pipeline defers downstream: the default is most sensitive, NCALLERS>=2 and
 # CONF=HIGH trade recall for precision. The point of the table is to make that trade
 # measurable instead of assumed.
 #

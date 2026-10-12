@@ -5,6 +5,11 @@
 
 ---
 
+> **Update 2026-10-12: the rescue arm analysed below was REMOVED from `consensus.sh`.** The
+> consensus now outputs DeepVariant calls only, with the other callers as votes
+> (`CALLERS`/`NCALLERS`/`CONF`; no `GT_SOURCE`). Re-scored on the new code: WGS genome-wide F1 0.9959; exome fair-panel SNV 0.9961, INDEL 0.9315. The analysis
+> below is kept as the record of why.
+
 ## 0. The finding that matters most
 
 **The exome arm is materially worse than the WGS arm, and only for indels.** Running GIAB HG002

@@ -26,33 +26,42 @@ only corroborates. **A validated pipeline still produces garbage from a bad
 sample; this is the only thing standing between that and a report.**
 
 **One test suite exists and it covers the only logic that is ours:** `./test/test_consensus.sh`
-(synthetic data, no cloud, no patient data, ~4s). It pins the consensus rule (backbone + rescue +
-which sites get dropped) and the crash-safety invariants below. **Run it after touching
+(synthetic data, no cloud, no patient data, ~4s). It pins the consensus rule (DeepVariant calls
+only, other callers vote, nothing else is ever added) and the crash-safety invariants below. **Run it after touching
 `consensus.sh` or `consensus_from_results.sh`**: a broken merge yields a plausible VCF, not an
 error, so nothing else in the stack would catch it.
 
-## The core idea: 4 callers → union consensus → filtering
+## The core idea: 4 callers → DeepVariant calls + votes → filtering
 
 Every arm runs the same four callers (**DeepVariant, Strelka2, FreeBayes, HaplotypeCaller**) and
 combines them with **`consensus.sh`**: the single shared brain of the repo, reused (never duplicated)
-by every arm. Its consensus rule is a **union, not a majority filter**:
+by every arm. Its rule:
 
-- **Backbone** = *every* DeepVariant call, keeping DeepVariant's genotype fields (GT/GQ/DP/AD/VAF).
-- **Rescue** = variants DeepVariant missed but **≥2 other callers** agreed on; genotype borrowed from
-  Strelka2, else HaplotypeCaller (**FreeBayes counts toward concordance but is never a genotype donor**).
-- Nothing is tiered away here. Each variant is tagged `CALLERS` / `NCALLERS` / `CONF`
-  (HIGH≥3 / MEDIUM=2 / LOW=1) / `GT_SOURCE`. **Strictness is decided downstream** in candidate-filtering,
-  by filtering on those tags. `CONF` measures cross-caller *agreement*, not correctness.
+- **Calls** = *every* DeepVariant call and **only** DeepVariant calls, with DeepVariant's genotype
+  fields (GT/GQ/DP/AD/VAF).
+- **Votes** = the other three callers never add a variant; they annotate each call with
+  `CALLERS` / `NCALLERS` / `CONF` (HIGH≥3 / MEDIUM=2 / LOW=1). **Strictness is decided downstream** in
+  candidate-filtering, on those tags. `CONF` measures cross-caller *agreement*, not correctness.
+- **The rescue arm is gone (removed 2026-10-12): do not re-add it.** It added variants DeepVariant
+  missed but ≥2 other callers found (genotype borrowed from Strelka2/HaplotypeCaller, tagged
+  `GT_SOURCE`). On GIAB HG002 it added ~9,700 false calls for ~1,300 true genome-wide, gained 0 true
+  variants in the g4e panel, and **no depth / AB / NCALLERS floor separated its true from its false
+  calls** (DeepVariant had already seen and rejected those sites). In patient batches its records were
+  ~43% of a WGS candidate table and every rescued P/LP row reviewed was an artifact. DeepVariant alone
+  has the best F1 (0.9959 genome-wide). The votes stay because they ARE informative: an unconfirmed
+  DeepVariant call is ~100× more often false (15.5% vs 0.12% of SNVs).
+- Pre-2026-10-12 consensus VCFs still contain rescued records (`GT_SOURCE` ≠ deepvariant):
+  candidate-filtering skips them with a WARNING; rebuild with the current `consensus.sh` to clean.
 
 Pipeline inside `consensus.sh`: per-caller VCFs are normalized (keep `PASS`, `norm -m -both` split +
 left-align against REF, **drop records the sample does not carry** (`GT~"1"`), `--rm-dup exact`), intersected with `bcftools isec -n +1`, then an awk pass
-builds the presence/annotation VCF that drives backbone annotation + rescue. Three subtle invariants are
+builds the presence/annotation VCF that drives the vote annotation. Three subtle invariants are
 load-bearing and commented in-file: (1) `--rm-dup exact` **not** `all` (all collapses by position and
 silently drops just-split alt alleles); (2) `harmonize()` computes an explicit drop-list from the
 header instead of `-x ^keep,...` because bcftools 1.13's caret form errors when nothing needs removing.
 (3) the carrier filter after the split: a caller listing `ALT=A,C` but genotyping `0/2` yields a `0/0`
-record for A once split, which used to count as a DeepVariant "call" (inflating NCALLERS/CONF) and
-block the rescue of A from the other callers. Use `GT~"1"`, not `GT="alt"`, which on bcftools 1.13
+record for A once split, which would otherwise count as a "call" (inflating NCALLERS/CONF) and be
+emitted as a DeepVariant variant the sample does not carry. Use `GT~"1"`, not `GT="alt"`, which on bcftools 1.13
 also drops half-calls like `./1`.
 
 ## Three entry points (same callers, same consensus.sh, same cloud setup)
@@ -106,14 +115,14 @@ which IDs, what was found) in a per-run note under `$WIN`, never in tracked docs
 `validation/` holds the accuracy evidence and how to reproduce it: `run_giab.sh` (WGS),
 `run_giab_exome.sh` (exome: the arm actually delivered clinically), `benchmark_giab.sh`,
 `SOP.md` (draft procedure with acceptance criteria left for the lab to set), and `RESULTS-*.md`.
-**Two results to remember.** (1) Accuracy varies more by REGION than by confidence tier: g4e panel
-F1 0.9977, genome-wide 0.9948. (2) **The exome arm is materially worse than WGS, and only for
-indels**: on a REAL capture library, same panel genes, SNV F1 0.9955 but INDEL F1 **0.9198**, versus
-0.9934 for WGS reads merely restricted to the panel. Restricting WGS to a BED is NOT a substitute
-for validating the exome: it was optimistic by ~0.07 F1 on indels. Quote
+**Two results to remember** (current consensus, re-scored 2026-10-12). (1) Accuracy varies more by
+REGION than by confidence tier: g4e panel F1 0.9981, genome-wide 0.9959. (2) **The exome arm is
+materially worse than WGS, and only for indels**: on a REAL capture library, same panel genes, SNV
+F1 0.9961 but INDEL F1 **0.9315**, versus 0.9934 for WGS reads merely restricted to the panel. Restricting WGS to a BED is NOT a substitute
+for validating the exome: it was optimistic by ~0.06-0.07 F1 on indels. Quote
 `RESULTS-HG002-EXOME.md` for the exome/BGE arms, never the WGS exome-restricted row. Quote the number for the region you
-report from. The ≥2-caller rescue arm is net-negative genome-wide (8.7 FP per TP) but neutral
-inside the panel, so the shipped default needs no change.
+report from. The pre-2026-10-12 union (with the rescue arm) scored 0.9948 / 0.9977 and exome indel
+0.9198; those numbers describe consensus files built before then.
 
 ## Cloud environment (provisioned: do not re-scaffold; portable via site.sh)
 
@@ -232,7 +241,7 @@ Scripts are env-var driven (override without editing): `SAMPLESHEET` `OUTDIR` `I
   here. It is enabled because `haplotypecaller_filter` is absent from `--skip_tools`.
   **It is still NOT free to skip:** `consensus_from_results.sh` prefers
   `*.haplotypecaller.filtered.vcf.gz`, so skipping it feeds the RAW HaplotypeCaller calls into the
-  consensus instead of the CNN-filtered ones. The GIAB numbers (F1 0.9948) were measured WITH it.
+  consensus instead of the CNN-filtered ones. The GIAB numbers (F1 0.9948 for the July union, 0.9959 for the current consensus) were measured WITH it.
   Skipping it is a legitimate ~4 h saving but changes the science: re-run `validation/` if you do.
   *(An earlier revision of this file blamed the stall on `BCFTOOLS_STATS`; the execution trace shows
   that was wrong.)*

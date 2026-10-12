@@ -9,6 +9,11 @@ The pipeline was run **exactly as it is run clinically**: `gcb.config`, all four
 pipeline and not a tuned variant of it. Note this means CNNScoreVariants **did** run, and the
 consensus consumed `HG002.haplotypecaller.filtered.vcf.gz`, exactly as production does.
 
+> **Update 2026-10-12: the rescue arm analysed below was REMOVED from `consensus.sh`.** The
+> consensus now outputs DeepVariant calls only, with the other callers as votes
+> (`CALLERS`/`NCALLERS`/`CONF`; no `GT_SOURCE`). Re-scored on the new code: genome-wide F1 **0.9959**, g4e panel F1 **0.9981** (section *Re-score 2026-10-12* at the end). The analysis
+> below is kept as the record of why.
+
 ## Headline
 
 **Genome-wide F1 = 0.9948** (SNV 0.9949, INDEL 0.9941) for the clinical default (the full union
@@ -191,3 +196,22 @@ than its backbone: this data does not support that.
 `validation/run_giab.sh`: end to end. Measured cost for this run: **$4.68** of Spot compute
 (178 Batch jobs, 19 preempted and retried), 11h23m wall clock, ~$0 storage since the public FASTQ is
 read in place. See `validation/README.md`.
+
+## Re-score 2026-10-12: rescue arm removed
+
+`consensus.sh` was changed to output DeepVariant calls only (the other callers vote via
+`CALLERS`/`NCALLERS`/`CONF`; no rescue, no `GT_SOURCE`). The same HG002 per-caller VCFs were
+re-run through the new script (`giab-validation/rescore-2026-10-12.sh`, untracked) and re-scored
+with the same truth set, regions and vcfeval settings.
+
+| Region | Precision | Recall | F1 | FP | FN | Union before |
+|---|---|---|---|---|---|---|
+| WGS genome-wide | 0.9984 | 0.9933 | **0.9959** | 6,225 | 25,919 | 0.9948 (16,043 FP) |
+| WGS g4e panel | 0.9985 | 0.9976 | **0.9981** | 6 | 10 | 0.9977 (9 FP) |
+| Exome, whole V6 capture: SNV / INDEL | 0.9917 / 0.9604 | 0.9453 / 0.8493 | **0.9680 / 0.9014** | 694 / 384 | 4,788 / 1,608 | 0.9646 / 0.8901 |
+| Exome, fair panel (3.50 Mb): SNV / INDEL | 0.9983 / 0.9581 | 0.9939 / 0.9064 | **0.9961 / 0.9315** | 3 / 7 | 11 / 16 | 0.9955 / 0.9198 |
+
+Identical to the "DeepVariant alone" rows measured in July, as expected: the new consensus is that
+call set by construction. The trade, stated plainly: in the exome fair panel the rescue arm had
+recovered 3 true indels at the cost of 8 false ones; without it, indel recall falls 0.9240 → 0.9064
+and precision rises 0.9157 → 0.9581.

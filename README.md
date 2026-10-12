@@ -1,8 +1,8 @@
 # Sarek Clinical Pipeline: Plain-Language Guide
 
 Clinical germline variant calling on **Google Cloud** using **four independent variant callers**,
-merged into one **union consensus**: every DeepVariant call is kept, plus variants DeepVariant missed
-that **at least two of the other three callers** agree on. The single consensus VCF is handed to the
+combined into one **consensus VCF**: the calls are **DeepVariant's**, and the other three callers
+**vote** on each of them (how many found the same variant). The single consensus VCF is handed to the
 `candidate-filtering` repo. The heavy computing runs in the cloud, not on your laptop.
 
 ## What this pipeline does
@@ -11,9 +11,10 @@ that **at least two of the other three callers** agree on. The single consensus 
    using four callers: DeepVariant, Strelka2, FreeBayes and GATK HaplotypeCaller. Inputs are WGS
    FASTQ (this guide) or Terra BGE exome CRAMs ([BGE.md](BGE.md)).
 2. **Builds a consensus** locally (`consensus.sh`): keeps PASS calls, splits multiallelics and
-   left-aligns, keeps only genotypes the sample carries, then takes the DeepVariant set and rescues
-   sites found by >= 2 other callers. Every record carries `CALLERS`, `NCALLERS`, `CONF`
-   (HIGH >= 3 / MEDIUM 2 / LOW 1) and `GT_SOURCE` so a curator can see the support behind a call.
+   left-aligns, keeps only genotypes the sample carries, then outputs the DeepVariant calls, each
+   tagged `CALLERS`, `NCALLERS` and `CONF` (HIGH >= 3 / MEDIUM 2 / LOW 1) from the other callers'
+   votes, so a curator can see the support behind a call. A variant only the other callers found is
+   **not** added (the former "rescue arm" was removed on 2026-10-12, see Section 4).
 3. **Checks sample QC** (`qc_gate.sh`): variant count, Ti/Tv, het/hom ratio, an allele-balance
    contamination proxy, depth and chrX-based sex. It is run separately and is not yet a blocking gate.
 4. **Hands off** the consensus VCF to `candidate-filtering` (VEP annotation, gene-panel filtering,
@@ -304,10 +305,20 @@ No single variant caller is perfect. We run four and combine them:
 - **HaplotypeCaller**: the long-standing standard (GATK)
 - **FreeBayes**: a different method, for breadth
 
-**Rule:** keep a variant if **≥2 callers** find it, **OR** if **DeepVariant** finds it
-(so we don't throw away DeepVariant's high-quality calls). This balances accuracy
-(fewer false positives) with not missing real variants. *(The script that applies this
-is `consensus.sh`: see Section 5.)*
+**Rule:** the variant list is **DeepVariant's**. The other three callers do not add variants;
+they **vote**: every DeepVariant call records how many callers found it. *(The script that applies
+this is `consensus.sh`: see Section 5.)*
+
+Why this rule, measured on the GIAB HG002 reference genome (Section 7):
+- **DeepVariant alone is the most accurate caller set** (genome-wide F1 0.9959).
+- **The votes are informative.** A DeepVariant call no other caller confirms is about 100 times
+  more likely to be false (15.5% vs 0.12% of SNVs), so `NCALLERS` is a strong triage signal.
+- **Adding what DeepVariant missed does not help.** Until 2026-10-12 a "rescue arm" added variants
+  DeepVariant missed but ≥2 other callers found. It added ~7 false calls per true one genome-wide,
+  gained no true variant inside the epilepsy panel, and no depth / allele-balance / caller-count
+  floor separated its true from its false calls (DeepVariant had already seen and rejected those
+  sites). In patient batches its calls were ~43% of a WGS candidate table and every rescued
+  "pathogenic" row reviewed was an artifact. It was removed.
 
 ---
 
@@ -318,27 +329,21 @@ clinical report you want **one** list of variants, where each variant is tagged 
 much the callers agreed*. That is what `consensus.sh` does.
 
 ### What it does, in plain words
-It builds a **union** list with two parts:
-
-1. **Backbone: every DeepVariant call**, kept with DeepVariant's genotype details:
+1. **Calls: every DeepVariant call**, kept with DeepVariant's genotype details:
    zygosity (`GT`), quality (`GQ`), depth (`DP`), allelic depths (`AD`), allele fraction
    (`VAF`). *(Sarek's own built-in consensus throws these details away: that's why we use
    our own script.)*
-2. **Rescue: variants DeepVariant missed but ≥2 of the other callers agreed on.** These are
-   added back so we don't lose real variants. Since DeepVariant has no genotype for them, the
-   genotype is **borrowed from Strelka2**, or from **HaplotypeCaller** if Strelka2 didn't call
-   it (FreeBayes counts toward agreement but is never used as the genotype source). Rescued
-   variants carry `GT/GQ/DP/AD` (no `VAF`: those callers don't report it; `AD` lets you
-   compute allele fraction).
+2. **Votes: the other three callers.** They never add a variant. They only record, on each
+   DeepVariant call, whether they found it too.
 
-Every variant gets four tags:
-- `NCALLERS`: how many of the four callers found it (1–4)
+Every variant gets three tags:
+- `NCALLERS`: how many of the four callers found it (1–4; DeepVariant is always one of them)
 - `CALLERS` : their names, e.g. `deepvariant,strelka`
 - `CONF`    : confidence from agreement: **HIGH** (≥3 callers), **MEDIUM** (2), **LOW** (1)
-- `GT_SOURCE`: which caller the genotype came from (`deepvariant`, `strelka`, or `haplotypecaller`)
 
-Nothing concordant is silently lost, and **nothing is tiered away here**: you decide how
-strict to be *afterwards* (see below). This keeps the decision visible and auditable.
+**Nothing is tiered away here**: you decide how strict to be *afterwards* (see below). This keeps
+the decision visible and auditable. A variant found only by the other callers is not in the file;
+`SAMPLE.consensus.log` reports how many such sites there were.
 
 > Before comparing, the script lines up the callers fairly: keeps only `PASS` variants,
 > splits "two-variants-in-one-line" records apart, and shifts insertions/deletions to a
@@ -362,8 +367,8 @@ source ./env.sh                       # puts tools on PATH (if you installed the
   -c freebayes=results/variant_calling/freebayes/SAMPLE/SAMPLE.freebayes.vcf.gz \
   -c haplotypecaller=results/variant_calling/haplotypecaller/SAMPLE/SAMPLE.haplotypecaller.vcf.gz
 ```
-- `-r` reference FASTA (with `.fai`)   · `-d` the DeepVariant VCF (the backbone)
-- `-o` output prefix   · `-c name=path` for each of the **other** callers (repeat as needed)
+- `-r` reference FASTA (with `.fai`)   · `-d` the DeepVariant VCF (the calls)
+- `-o` output prefix   · `-c name=path` for each of the **other** (voting) callers (repeat as needed)
 - Run `~/sarek-clinical/consensus.sh -h` for all options (e.g. `-f` to change which FILTER
   values are kept; default `PASS,.`).
 
@@ -371,8 +376,8 @@ You can run this **on your laptop**: it only reads the small variant files, not 
 sequencing data, so it does not need the cloud.
 
 ### What you get
-- `SAMPLE.consensus.vcf.gz` (+ `.tbi`): all DeepVariant calls **plus** the rescued ≥2-caller
-  variants, genotypes intact, each tagged with `CALLERS` / `NCALLERS` / `CONF` / `GT_SOURCE`.
+- `SAMPLE.consensus.vcf.gz` (+ `.tbi`): all DeepVariant calls, genotypes intact, each tagged with
+  `CALLERS` / `NCALLERS` / `CONF`.
 - `SAMPLE.consensus.log`: a record of exactly what was run (for clinical provenance).
 
 > **If it is interrupted, it leaves nothing behind.** The VCF is built in a `.partial` file and only
@@ -381,23 +386,25 @@ sequencing data, so it does not need the cloud.
 > Section 8.
 
 ### Choosing how strict to be (the actual filter)
-The file is exactly the **"≥2 callers OR DeepVariant"** set from Section 4: most sensitive,
-nothing real thrown away. To tighten it later, filter on the tags:
+The file is the DeepVariant set from Section 4. To tighten it, filter on the tags:
 ```bash
-# Sensitive (default): use the file as-is.
+# Default: use the file as-is.
 
-# Stricter: keep only variants 2+ callers agreed on (drops DeepVariant-only calls):
-bcftools view -i 'NCALLERS>=2' SAMPLE.consensus.vcf.gz -Oz -o SAMPLE.concordant.vcf.gz
+# Confirmed calls only (drops DeepVariant calls no other caller found):
+bcftools view -i 'NCALLERS>=2' SAMPLE.consensus.vcf.gz -Oz -o SAMPLE.confirmed.vcf.gz
 
-# Highest-confidence tier only:
+# Highest-confidence tier only (do not use for indels: callers disagree on indel representation):
 bcftools view -i 'CONF="HIGH"' SAMPLE.consensus.vcf.gz
 
-# See where each genotype came from:
-bcftools query -f '%CHROM\t%POS\t%INFO/GT_SOURCE\t%INFO/CALLERS\n' SAMPLE.consensus.vcf.gz
+# See which callers support each call:
+bcftools query -f '%CHROM\t%POS\t%INFO/NCALLERS\t%INFO/CALLERS\n' SAMPLE.consensus.vcf.gz
 ```
 
-> **Mixed genotype sources:** rescued variants carry a Strelka2/HaplotypeCaller genotype (and
-> no `VAF`). Use `GT_SOURCE` if your downstream filter treats DeepVariant genotypes differently.
+> **Hard drops are a genome-wide accuracy loss.** On GIAB, keeping only confirmed calls
+> (`NCALLERS>=2`) loses ~5,400 true variants genome-wide. candidate-filtering instead uses the
+> votes as a triage signal: an unconfirmed call is set aside only when it also has a quality flag.
+> Consensus files built before 2026-10-12 also contain rescued records (with an extra
+> `GT_SOURCE` tag); candidate-filtering skips those and prints a warning.
 This is where the project's downstream **candidate-filtering** step takes over.
 
 > **Clinical note:** `CONF` measures *agreement between callers*, not absolute correctness.
@@ -450,9 +457,8 @@ This is where the project's downstream **candidate-filtering** step takes over.
   | everything else (QC, markdup, merges) | 10.0 | 4% |
 
   Two counter-intuitive consequences. **FreeBayes is essentially free**: dropping it to save money
-  would buy ~1% while losing a caller that contributes to the >=2-caller rescue, so don't. And
-  **DeepVariant alone is over half the bill**, but it is the consensus backbone, so it is the one
-  caller you cannot drop. The genuinely large, zero-compromise lever is **alignment (29%)**: it
+  would buy ~1% while losing a vote, so don't. And **DeepVariant alone is over half the bill**,
+  but its calls are the variant list, so it is the one caller you cannot drop. The genuinely large, zero-compromise lever is **alignment (29%)**: it
   disappears entirely if you can start from an aligned GRCh38 CRAM instead of FASTQ.
 - **You only pay while jobs run** + a small amount for files sitting in the bucket.
 - The biggest waste is forgetting to delete the `work/` folder: do Step 6. For WGS this
@@ -460,16 +466,15 @@ This is where the project's downstream **candidate-filtering** step takes over.
   ~$30–60/month in storage: several times the compute that produced it.
 - **Validation status: DONE (WGS 2026-07-27, EXOME 2026-07-28):** the pipeline has been run against the GIAB **HG002**
   reference genome and scored with RTG `vcfeval` against the **GIAB v4.2.1** truth set.
-  **Genome-wide F1 = 0.9948** (SNV 0.9949, INDEL 0.9941) inside GIAB high-confidence regions for the
-  default union consensus: and **0.9959** (SNV 0.9961, INDEL 0.9946) for the DeepVariant backbone
-  alone. The ≥2-caller rescue arm is **net-negative genome-wide** (8.7 false positives per true variant
-  recovered) but **neutral inside the g4e panel** (identical true variants found, 3 extra false
-  positives across 1,066 genes): so the default is fine as shipped. See the results file. Full numbers, per-tier comparison
-  and limitations: **[validation/RESULTS-HG002.md](validation/RESULTS-HG002.md)**; how to re-run:
-  [validation/README.md](validation/README.md). The validation cost **$4.68**.
+  **Genome-wide F1 = 0.9959** (SNV 0.9961, INDEL 0.9946) inside GIAB high-confidence regions for the
+  current consensus (DeepVariant calls, re-scored 2026-10-12 after the rescue arm was removed; the
+  former union with the rescue arm scored 0.9948). g4e panel F1 0.9981. Full numbers, per-tier
+  comparison and limitations: **[validation/RESULTS-HG002.md](validation/RESULTS-HG002.md)**; how to
+  re-run: [validation/README.md](validation/README.md). The validation cost **$4.68**.
   **The exome arm was validated separately and performs worse: quote the right number.** On a real
-  capture library (GIAB HG002 exome), in the same panel genes: SNV F1 **0.9955**, but INDEL F1
-  **0.9198** (vs 0.9934 for WGS reads merely restricted to the panel). Indel sensitivity is the
+  capture library (GIAB HG002 exome), in the same panel genes: SNV F1 **0.9961**, but INDEL F1
+  **0.9315** (vs 0.9934 for WGS reads merely restricted to the panel; 0.9955 / 0.9198 with the former
+  rescue arm). Indel sensitivity is the
   limiting factor for exome/BGE reporting and belongs in report limitations: see
   **[validation/RESULTS-HG002-EXOME.md](validation/RESULTS-HG002-EXOME.md)**.
   This measures the *variant-calling* pipeline only, inside high-confidence regions, for SNVs and
@@ -534,7 +539,6 @@ capture-kit target BED (GRCh38, chr-prefixed; e.g. Agilent SureSelect V6 `S07604
 | consensus | combining the four callers' results into one tagged list |
 | `NCALLERS` / `CALLERS` | how many callers (and which) found a given variant |
 | `CONF` | confidence from agreement: HIGH (≥3 callers) / MEDIUM (2) / LOW (1) |
-| `GT_SOURCE` | which caller the genotype came from (`deepvariant` / `strelka` / `haplotypecaller`) |
 | genotype (`GT`,`DP`,`AD`,`GQ`,`VAF`) | per-variant details: zygosity, depth, allele depths, quality, allele fraction |
 
 ---
@@ -554,9 +558,9 @@ It makes up its own tiny genome and four fake caller files: **no cloud, no patie
 and checks two things:
 
 1. **The rule is still the rule.** A variant all four callers found comes out `HIGH` with DeepVariant's
-   genotype; a DeepVariant-only variant comes out `LOW`; a variant DeepVariant missed but three others
-   found is rescued with Strelka2's genotype; one only HaplotypeCaller and FreeBayes found is rescued
-   with HaplotypeCaller's; and variants only *one* non-DeepVariant caller found are correctly dropped.
+   genotype; a DeepVariant-only variant comes out `LOW`; and variants DeepVariant did not call are
+   **absent** however many other callers found them (one, two or three). A DeepVariant `0/0` left by
+   splitting a `0/2` site is not emitted as a call, and no `GT_SOURCE` tag is written.
 2. **A crash can't produce a half-finished result.** The consensus VCF is written to a temporary
    `.partial` file and only renamed into place once it is complete and indexed. So if the run is
    interrupted (Ctrl-C, laptop shutdown), there is simply **no output file**: rather than a truncated
@@ -573,7 +577,7 @@ or names exactly what broke.
 **Shared core**
 - `LICENSE`: MIT (with a note that clinical use requires validation first)
 - `site.sh`: one place for project/bucket/local paths (`SAREK_*`, `CF`, `WIN`); override in an untracked `site.env` (Section 2)
-- `consensus.sh`: union consensus: all DeepVariant calls + variants ≥2 other callers agree on (genotype borrowed from Strelka2/HaplotypeCaller), tagged with `CALLERS`/`NCALLERS`/`CONF`/`GT_SOURCE` (Section 5)
+- `consensus.sh`: consensus: the DeepVariant calls, tagged with the other callers' votes (`CALLERS`/`NCALLERS`/`CONF`) (Section 5)
 - `env.sh`: sources `site.sh`, then loads Java + Nextflow into your terminal (and sets `NXF_SYNTAX_PARSER=v1`, required for sarek 3.8.1 on Nextflow 26.x)
 - `test/test_consensus.sh`: regression test for `consensus.sh` (Section 8)
 

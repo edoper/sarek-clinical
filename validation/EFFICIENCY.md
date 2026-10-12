@@ -61,8 +61,8 @@ so skipping it feeds raw HaplotypeCaller calls into the consensus. The validated
 
 **2. HaplotypeCaller is under-parallelised.** 23 interval shards at 2 cores each. DeepVariant
 covers the same genome in 8.5 h of realtime using 11 cores per shard. More shards, or more threads
-per shard, would cut the longest pole: and HaplotypeCaller's role in the consensus is only as a
-rescue genotype donor, which the validation showed contributes little.
+per shard, would cut the longest pole. Since 2026-10-12 HaplotypeCaller's only role in the
+consensus is a vote (the rescue arm it donated genotypes to was removed).
 
 **3. Parallelism sat at 4.5× against a cap of 40.** One sample cannot fill the cluster: sarek shards
 calling ~26 ways, so that is the ceiling for a single genome. **This pipeline is far more efficient
@@ -107,9 +107,10 @@ pipeline. This was deliberately NOT applied automatically for that reason.
 
 ## What NOT to change
 
-- **FreeBayes** looks wasteful (11.8% of realtime, 0.9 cores) and is only 1.9% of cost. But it feeds
-  the ≥2-caller concordance logic. Given the validation found the rescue arm neutral in-panel, its
-  removal is defensible: but it is a science change, not an efficiency fix, and needs re-validation.
+- **FreeBayes** looks wasteful (11.8% of realtime, 0.9 cores) and is only 1.9% of cost. But it is
+  one of the votes behind `NCALLERS`, which candidate-filtering uses to set aside unconfirmed
+  low-quality calls. Removing it (or HaplotypeCaller) changes that signal: a science change that
+  needs re-validation, not an efficiency fix.
 - **Spot.** 7.6% rework for roughly 5× cheaper VMs is a clearly good trade. All 19 preemptions
   recovered automatically.
 

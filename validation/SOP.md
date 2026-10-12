@@ -57,7 +57,7 @@ set is confident.
 | Pipeline | `sarek-clinical`, pinned commit | `RUN-PROVENANCE.md` per run |
 | Workflow | nf-core/sarek, pinned `-r` version | `gcb.config`, run log |
 | Callers | DeepVariant, Strelka2, FreeBayes, GATK HaplotypeCaller | `gcb.config` |
-| Consensus | `consensus.sh` (DeepVariant backbone + ≥2-caller rescue) | repo |
+| Consensus | `consensus.sh` (DeepVariant calls, other callers vote; rescue arm removed 2026-10-12, re-scored) | repo |
 | Reference | GRCh38 (`Homo_sapiens_assembly38`, ALT/decoy included) | `gcb.config` |
 | Reference sample | GIAB HG002 / NA24385 | `validation/README.md` |
 | Truth set | GIAB v4.2.1, GRCh38 | `validation/README.md` |

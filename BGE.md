@@ -9,7 +9,7 @@ the bucket, and the Google Cloud setup.
  Terra BGE CRAMs ─► Sarek WES variant-calling (Google Batch, from CRAM, 4 callers)
                        DeepVariant · Strelka2 · FreeBayes · HaplotypeCaller
                  ─► per-caller VCFs (bucket)
-                 ─► consensus.sh  (DeepVariant backbone + ≥2-caller rescue)        ← small, local
+                 ─► consensus.sh  (DeepVariant calls, other callers vote)          ← small, local
                  ─► <family>-<role>.consensus.vcf.gz
                  ─► vep_annotate.sh + filtering_r.pl  (candidate-filtering repo)   ← local
 ```
