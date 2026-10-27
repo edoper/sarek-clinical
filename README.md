@@ -1,23 +1,28 @@
 # Sarek Clinical Pipeline: Plain-Language Guide
 
 Clinical germline variant calling on **Google Cloud** using **four independent variant callers**,
-combined into one **consensus VCF**: the calls are **DeepVariant's**, and the other three callers
-**vote** on each of them (how many found the same variant). The single consensus VCF is handed to the
+combined into one **voted VCF**: the calls are **DeepVariant's**, and the other three callers
+**vote** on each of them (how many found the same variant). The single voted VCF is handed to the
 `candidate-filtering` repo. The heavy computing runs in the cloud, not on your laptop.
+
+> **Naming.** The script `consensus.sh` and its `*.consensus.vcf.gz` output keep their historical
+> names so existing runs and paths keep working. Since 2026-10-12 the output is **not** a consensus
+> (no call is added or removed by agreement): it is every DeepVariant call, tagged with the other
+> callers' votes (`CALLERS`/`NCALLERS`/`CONF`). This guide calls it the **voted VCF**.
 
 ## What this pipeline does
 
 1. **Calls variants** with nf-core/sarek 3.8.1 (pinned) on Google Batch Spot VMs against GATK GRCh38,
    using four callers: DeepVariant, Strelka2, FreeBayes and GATK HaplotypeCaller. Inputs are WGS
    FASTQ (this guide) or Terra BGE exome CRAMs ([BGE.md](BGE.md)).
-2. **Builds a consensus** locally (`consensus.sh`): keeps PASS calls, splits multiallelics and
+2. **Builds the voted VCF** locally (`consensus.sh`): keeps PASS calls, splits multiallelics and
    left-aligns, keeps only genotypes the sample carries, then outputs the DeepVariant calls, each
    tagged `CALLERS`, `NCALLERS` and `CONF` (HIGH >= 3 / MEDIUM 2 / LOW 1) from the other callers'
    votes, so a curator can see the support behind a call. A variant only the other callers found is
    **not** added (the former "rescue arm" was removed on 2026-10-12, see Section 4).
 3. **Checks sample QC** (`qc_gate.sh`): variant count, Ti/Tv, het/hom ratio, an allele-balance
    contamination proxy, depth and chrX-based sex. It is run separately and is not yet a blocking gate.
-4. **Hands off** the consensus VCF to `candidate-filtering` (VEP annotation, gene-panel filtering,
+4. **Hands off** the voted VCF to `candidate-filtering` (VEP annotation, gene-panel filtering,
    triage ACMG classification), driven end to end for a cohort by `run_bge_annotate_filter.sh`.
 
 Validation against GIAB HG002 covers the WGS and Agilent-exome arms (see `validation/`); **the BGE arm
@@ -60,7 +65,7 @@ directory.
 | **Java 17+** | Nextflow runs on the JVM | `sudo apt install openjdk-21-jdk` (or [SDKMAN](https://sdkman.io)) |
 | **Nextflow** | sends jobs to the cloud | `curl -s https://get.nextflow.io \| bash && sudo mv nextflow /usr/local/bin/` |
 | **gcloud CLI** | talks to Google Cloud | [cloud.google.com/sdk/docs/install](https://cloud.google.com/sdk/docs/install) |
-| **bcftools, htslib, samtools** | the local consensus step | `conda install -c bioconda bcftools htslib samtools` |
+| **bcftools, htslib, samtools** | the local voting step | `conda install -c bioconda bcftools htslib samtools` |
 | **python3** | `build_cohort.py` | usually already present |
 
 Docker is **not** needed locally: containers run on the cloud VMs, not your laptop.
@@ -133,7 +138,7 @@ the shell scripts and the Nextflow configs read these values, so this one file r
 ### 0.5: Get the reference genome
 
 Two copies are needed: one **in your bucket** (the cloud jobs read it) and one **on your laptop**
-(the local consensus step reads it). Both come from Broad's public bucket: free, and the same files
+(the local voting step reads it). Both come from Broad's public bucket: free, and the same files
 this pipeline was developed against.
 
 ```bash
@@ -156,11 +161,11 @@ gcloud storage cp $BROAD/Homo_sapiens_assembly38.fasta.fai refs/
 
 > **It must be the full GATK GRCh38, with ALT and decoy contigs: not a GENCODE "primary assembly".**
 > `bcftools norm` fails on any call landing on an ALT contig, and exome targets do include them. This
-> is the single most common way to break the consensus step.
+> is the single most common way to break the voting step.
 
 ### 0.6: Get `candidate-filtering` (the downstream half)
 
-This repo stops at a consensus VCF. Turning that into a ranked candidate list is a separate repo:
+This repo stops at a voted VCF. Turning that into a ranked candidate list is a separate repo:
 
 ```bash
 git clone https://github.com/edoper/candidate-filtering.git
@@ -403,7 +408,7 @@ bcftools query -f '%CHROM\t%POS\t%INFO/NCALLERS\t%INFO/CALLERS\n' SAMPLE.consens
 > **Hard drops are a genome-wide accuracy loss.** On GIAB, keeping only confirmed calls
 > (`NCALLERS>=2`) loses ~5,400 true variants genome-wide. candidate-filtering instead uses the
 > votes as a triage signal: an unconfirmed call is set aside only when it also has a quality flag.
-> Consensus files built before 2026-10-12 also contain rescued records (with an extra
+> Files built before 2026-10-12 also contain rescued records (with an extra
 > `GT_SOURCE` tag); candidate-filtering skips those and prints a warning.
 This is where the project's downstream **candidate-filtering** step takes over.
 
@@ -467,7 +472,7 @@ This is where the project's downstream **candidate-filtering** step takes over.
 - **Validation status: DONE (WGS 2026-07-27, EXOME 2026-07-28):** the pipeline has been run against the GIAB **HG002**
   reference genome and scored with RTG `vcfeval` against the **GIAB v4.2.1** truth set.
   **Genome-wide F1 = 0.9959** (SNV 0.9961, INDEL 0.9946) inside GIAB high-confidence regions for the
-  current consensus (DeepVariant calls, re-scored 2026-10-12 after the rescue arm was removed; the
+  current voted call set (DeepVariant calls, re-scored 2026-10-12 after the rescue arm was removed; the
   former union with the rescue arm scored 0.9948). g4e panel F1 0.9981. Full numbers, per-tier
   comparison and limitations: **[validation/RESULTS-HG002.md](validation/RESULTS-HG002.md)**; how to
   re-run: [validation/README.md](validation/README.md). The validation cost **$4.68**.
@@ -502,7 +507,7 @@ without hand-holding:
    VM cost but zero preemption: worth it for the tail of a stuck run).
 3. **Skip fragile QC on big runs.** `vcftools`/`multiqc` QC steps can themselves fail on Spot and abort
    an otherwise-complete run. Add `--skip_tools baserecalibrator,vcftools,multiqc` (BQSR is unnecessary
-   with a DeepVariant consensus backbone; `bcftools stats` QC still runs). Drop `baserecalibrator` from
+   with a DeepVariant call backbone; `bcftools stats` QC still runs). Drop `baserecalibrator` from
    that list if you want strict GATK-best-practice parity.
 4. **Uploading FASTQ from Windows/WSL (`/mnt/c`):** disable parallel composite uploads or large files
    corrupt ("Temporary components were not uploaded correctly"):
@@ -536,14 +541,14 @@ capture-kit target BED (GRCh38, chr-prefixed; e.g. Agilent SureSelect V6 `S07604
 | Spot VM | a cheap, occasionally-interrupted cloud computer (auto-retried) |
 | `-resume` | "continue where it stopped": safe to reuse |
 | GIAB | a reference genome with known answers, used to test accuracy |
-| consensus | combining the four callers' results into one tagged list |
+| voted VCF | combining the four callers' results into one tagged list |
 | `NCALLERS` / `CALLERS` | how many callers (and which) found a given variant |
 | `CONF` | confidence from agreement: HIGH (≥3 callers) / MEDIUM (2) / LOW (1) |
 | genotype (`GT`,`DP`,`AD`,`GQ`,`VAF`) | per-variant details: zygosity, depth, allele depths, quality, allele fraction |
 
 ---
 
-## 8. Checking the consensus step still works
+## 8. Checking the voting step still works
 
 `consensus.sh` is the only analysis logic this repo owns (everything else is standard Sarek), and a
 mistake in it produces a **plausible-looking VCF rather than an error**: so nothing downstream would
@@ -561,7 +566,7 @@ and checks two things:
    genotype; a DeepVariant-only variant comes out `LOW`; and variants DeepVariant did not call are
    **absent** however many other callers found them (one, two or three). A DeepVariant `0/0` left by
    splitting a `0/2` site is not emitted as a call, and no `GT_SOURCE` tag is written.
-2. **A crash can't produce a half-finished result.** The consensus VCF is written to a temporary
+2. **A crash can't produce a half-finished result.** The voted VCF is written to a temporary
    `.partial` file and only renamed into place once it is complete and indexed. So if the run is
    interrupted (Ctrl-C, laptop shutdown), there is simply **no output file**: rather than a truncated
    one that a later re-run would mistake for finished work and pass on to VEP and candidate-filtering.
@@ -577,7 +582,7 @@ or names exactly what broke.
 **Shared core**
 - `LICENSE`: MIT (with a note that clinical use requires validation first)
 - `site.sh`: one place for project/bucket/local paths (`SAREK_*`, `CF`, `WIN`); override in an untracked `site.env` (Section 2)
-- `consensus.sh`: consensus: the DeepVariant calls, tagged with the other callers' votes (`CALLERS`/`NCALLERS`/`CONF`) (Section 5)
+- `consensus.sh`: the voting step: the DeepVariant calls, tagged with the other callers' votes (`CALLERS`/`NCALLERS`/`CONF`) (Section 5)
 - `env.sh`: sources `site.sh`, then loads Java + Nextflow into your terminal (and sets `NXF_SYNTAX_PARSER=v1`, required for sarek 3.8.1 on Nextflow 26.x)
 - `test/test_consensus.sh`: regression test for `consensus.sh` (Section 8)
 
@@ -592,7 +597,7 @@ or names exactly what broke.
 - `make_samplesheet.sh`: family table → Sarek samplesheet (`<family>-<role>` naming)
 - `run_bge_wes.sh`: launch the BGE exome calling on Batch
 - `consensus_from_results.sh`: pull per-caller VCFs and run `consensus.sh` per sample (sample column auto-detected by header)
-- `run_bge_annotate_filter.sh`: VEP-annotate consensus VCFs + run candidate-filtering (`OUT_NAME` env sets the output folder)
+- `run_bge_annotate_filter.sh`: VEP-annotate voted VCFs + run candidate-filtering (`OUT_NAME` env sets the output folder)
 - `families.example.tsv`: template family/CRAM table
 
 **Exome from FASTQ** (align + call; Section 6b)

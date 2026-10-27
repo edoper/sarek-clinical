@@ -29,9 +29,9 @@ calling targets, not MANE-restricted, so you can re-explore without re-calling).
 | `build_cohort.py` | Terra sample-table export (`*.tsv`) → `families.tsv` + a CRAM staging list. Role map: proband=no suffix(`-P`), `…M`=madre(`-M`), `…P`=padre(`-F`). |
 | `make_samplesheet.sh` | `families.tsv` → Sarek samplesheet, naming samples `<family>-<role>` for candidate-filtering. |
 | `run_bge_wes.sh` | Launch the calling on Batch (single sample / small set). |
-| `consensus_from_results.sh` | Pull the small per-caller VCFs, run `consensus.sh`, emit `<sample>.consensus.vcf.gz`. Resumable + per-sample tolerant. **Consensus REF = full `Homo_sapiens_assembly38.fasta` (incl. ALT contigs)**: the primary-assembly fasta fails `norm` on ALT-contig calls. |
-| `run_bge_annotate_filter.sh` | Feed all consensus VCFs → VEP (isolated `bge-cohort/` workdir) → `run_filtering.sh` → `<proband>.candidatos` → copy to `$WIN`. |
-| `bge_progress.sh` / `bge_filter_progress.sh` | Zero-cost progress bars (calling/consensus; and VEP/filtering). |
+| `consensus_from_results.sh` | Pull the small per-caller VCFs, run `consensus.sh`, emit `<sample>.consensus.vcf.gz`. Resumable + per-sample tolerant. **Voting-step REF = full `Homo_sapiens_assembly38.fasta` (incl. ALT contigs)**: the primary-assembly fasta fails `norm` on ALT-contig calls. |
+| `run_bge_annotate_filter.sh` | Feed all voted VCFs → VEP (isolated `bge-cohort/` workdir) → `run_filtering.sh` → `<proband>.candidatos` → copy to `$WIN`. |
+| `bge_progress.sh` / `bge_filter_progress.sh` | Zero-cost progress bars (calling/voting; and VEP/filtering). |
 | `bge_cost.sh` | Live Spot **cost bar**: accrued spend vs `BUDGET` (default $20) + projected final cost, reconstructed from Batch job records (control-plane only, no compute/egress). |
 | `bge_dashboard.sh` | **One-glance dashboard**: calling progress + VEP/filter progress + cost bar in one view. `watch -n 30 ~/sarek-clinical/bge_dashboard.sh`. |
 | `families.example.tsv` | Template family/CRAM table (for the manual `make_samplesheet.sh` path). |
@@ -59,7 +59,7 @@ nextflow run nf-core/sarek -r 3.8.1 -profile docker -c gcb-bge-wes.config \
   -work-dir  gs://intergenica-sarek-clinical/bge-wes/work-cohort -ansi-log false -resume
 # 4) Monitor (zero cost): progress + live cost/budget bar in one view:
 #      watch -n 30 ~/sarek-clinical/bge_dashboard.sh      # (BUDGET=20 by default; override: BUDGET=30 watch ...)
-# 5) Consensus for all samples (local; uses ~/sarek-clinical/refs/Homo_sapiens_assembly38.fasta)
+# 5) Voted VCFs for all samples (local; uses ~/sarek-clinical/refs/Homo_sapiens_assembly38.fasta)
 SAMPLESHEET=samplesheet-cohort.csv OUTDIR=gs://intergenica-sarek-clinical/bge-wes/results-cohort \
   LOCAL_OUT=$HOME/sarek-clinical/consensus-cohort ./consensus_from_results.sh
 # 6) VEP + candidate-filtering for all probands -> $WIN/bge-candidatos/  (watch bge_filter_progress.sh)
@@ -111,7 +111,7 @@ cp families.example.tsv families.tsv          # edit with your real gs:// CRAM p
 export INTERVALS=gs://intergenica-sarek-clinical/bge-wes/targets/bge_calling_regions.bed
 ./run_bge_wes.sh
 
-# Step 5: consensus (small, local)
+# Step 5: voting (small, local)
 ./consensus_from_results.sh                   # -> ./consensus/<family>-<role>.consensus.vcf.gz
 
 # Step 6: annotate + filter (candidate-filtering repo)
@@ -127,7 +127,7 @@ gcloud storage rm -r gs://intergenica-sarek-clinical/bge-wes/work
 
 ## Notes
 - **Reference match:** BGE CRAMs are GRCh38 (`Homo_sapiens_assembly38`); Sarek decodes them with
-  `--genome GATK.GRCh38` (igenomes, cloud-side). The local consensus step uses the chr-named GRCh38
+  `--genome GATK.GRCh38` (igenomes, cloud-side). The local voting step uses the chr-named GRCh38
   already on disk, correct for exome candidates on the main chromosomes.
 - **Cost:** Spot + exome-only + alignment-free keeps per-sample cost low; scale ≈ samples × 4 callers.
 - **Local-only alternative** (not recommended at scale) needs a container engine (Apptainer), the GATK

@@ -26,7 +26,7 @@ only corroborates. **A validated pipeline still produces garbage from a bad
 sample; this is the only thing standing between that and a report.**
 
 **One test suite exists and it covers the only logic that is ours:** `./test/test_consensus.sh`
-(synthetic data, no cloud, no patient data, ~4s). It pins the consensus rule (DeepVariant calls
+(synthetic data, no cloud, no patient data, ~4s). It pins the voting rule (DeepVariant calls
 only, other callers vote, nothing else is ever added) and the crash-safety invariants below. **Run it after touching
 `consensus.sh` or `consensus_from_results.sh`**: a broken merge yields a plausible VCF, not an
 error, so nothing else in the stack would catch it.
@@ -50,7 +50,7 @@ by every arm. Its rule:
   ~43% of a WGS candidate table and every rescued P/LP row reviewed was an artifact. DeepVariant alone
   has the best F1 (0.9959 genome-wide). The votes stay because they ARE informative: an unconfirmed
   DeepVariant call is ~100× more often false (15.5% vs 0.12% of SNVs).
-- Pre-2026-10-12 consensus VCFs still contain rescued records (`GT_SOURCE` ≠ deepvariant):
+- VCFs built before 2026-10-12 (rescue arm) still contain rescued records (`GT_SOURCE` ≠ deepvariant):
   candidate-filtering skips them with a WARNING; rebuild with the current `consensus.sh` to clean.
 
 Pipeline inside `consensus.sh`: per-caller VCFs are normalized (keep `PASS`, `norm -m -both` split +
@@ -79,7 +79,7 @@ run `consensus.sh` per sample, resumable, sample column auto-detected) → **`ru
 ### Per-order scratch dirs (gitignored, but load-bearing)
 
 A single order/cohort's working files: its samplesheet, launcher, unattended orchestrator, resume
-scripts, and local consensus output: live in a **per-order scratch directory** that `.gitignore`
+scripts, and local voted VCFs: live in a **per-order scratch directory** that `.gitignore`
 excludes (it holds real sample/family IDs and patient VCFs). Such a dir is **not a fourth arm**: it
 reuses `gcb.config`/`gcb-bge-wes.config` + `consensus.sh` like everything else. The scripts below are a
 **reusable template**: the same shapes recur every order and encode lessons worth preserving even
@@ -89,7 +89,7 @@ which IDs, what was found) in a per-run note under `$WIN`, never in tracked docs
 - **`run_<order>.sh {crams|fastq}`**: WGS variant: **no `--wes`, no `--intervals`**. CRAM-start and
   FASTQ-start must be **two separate `nextflow run`s** because sarek's `--step` is global (`crams` =
   `--step variant_calling`, `fastq` = `--step mapping`). `cd` to the repo root so the config resolves.
-- **`orchestrate_<order>.sh`**: **unattended** end-to-end chain (stage/verify inputs → sarek → consensus
+- **`orchestrate_<order>.sh`**: **unattended** end-to-end chain (stage/verify inputs → sarek → voting
   → VEP + candidate-filtering → `$WIN/<order>-candidatos`). **Fail-closed**: any stage failure stops the
   chain. Every stage is **idempotent** (staging skips on exact byte-size match; sarek uses `-resume`),
   which is what makes re-running it the resume path. A `WAIT_SECS` env var can gate a pre-flight wait.
@@ -99,7 +99,7 @@ which IDs, what was found) in a per-run note under `$WIN`, never in tracked docs
   `[[ ! -s VEPOUT ]]` treats a **partial** VEP VCF (killed mid-run) as "done" and would silently ship
   truncated candidatos. Such a script must **delete the partial VEP artifacts before re-annotating**.
   General rule: **any resume guard must invalidate partial outputs, not just test for existence.**
-  Enforced in the consensus stage too: `consensus.sh` writes `<out>.consensus.vcf.gz.partial` and
+  Enforced in the voting stage too: `consensus.sh` writes `<out>.consensus.vcf.gz.partial` and
   renames it (index first) only after `tabix` succeeds, so the final path is never created
   half-written; `consensus_from_results.sh` skips a sample only when the VCF carries htslib's
   28-byte **BGZF EOF block** *and* has a `.tbi`, else it deletes the leftovers and re-runs. Verified
@@ -115,14 +115,14 @@ which IDs, what was found) in a per-run note under `$WIN`, never in tracked docs
 `validation/` holds the accuracy evidence and how to reproduce it: `run_giab.sh` (WGS),
 `run_giab_exome.sh` (exome: the arm actually delivered clinically), `benchmark_giab.sh`,
 `SOP.md` (draft procedure with acceptance criteria left for the lab to set), and `RESULTS-*.md`.
-**Two results to remember** (current consensus, re-scored 2026-10-12). (1) Accuracy varies more by
+**Two results to remember** (current voted call set, re-scored 2026-10-12). (1) Accuracy varies more by
 REGION than by confidence tier: g4e panel F1 0.9981, genome-wide 0.9959. (2) **The exome arm is
 materially worse than WGS, and only for indels**: on a REAL capture library, same panel genes, SNV
 F1 0.9961 but INDEL F1 **0.9315**, versus 0.9934 for WGS reads merely restricted to the panel. Restricting WGS to a BED is NOT a substitute
 for validating the exome: it was optimistic by ~0.06-0.07 F1 on indels. Quote
 `RESULTS-HG002-EXOME.md` for the exome/BGE arms, never the WGS exome-restricted row. Quote the number for the region you
 report from. The pre-2026-10-12 union (with the rescue arm) scored 0.9948 / 0.9977 and exome indel
-0.9198; those numbers describe consensus files built before then.
+0.9198; those numbers describe the pre-2026-10-12 builds (with the rescue arm).
 
 ## Cloud environment (provisioned: do not re-scaffold; portable via site.sh)
 
@@ -166,7 +166,7 @@ SAMPLESHEET=samplesheet-cohort.csv OUTDIR=.../results-cohort \
   LOCAL_OUT=$HOME/sarek-clinical/consensus-cohort ./consensus_from_results.sh
 ./run_bge_annotate_filter.sh                     # -> $WIN/<OUT_NAME>/*.candidatos
 
-# consensus for one sample, standalone
+# voted VCF for one sample, standalone
 ./consensus.sh -r refs/Homo_sapiens_assembly38.fasta -d DV.vcf.gz -o out/SAMPLE \
   -c strelka=STR.vcf.gz -c freebayes=FB.vcf.gz -c haplotypecaller=HC.vcf.gz
 
@@ -175,12 +175,12 @@ watch -n 30 ~/sarek-clinical/bge_dashboard.sh    # progress + Spot cost/budget b
 ```
 
 Scripts are env-var driven (override without editing): `SAMPLESHEET` `OUTDIR` `INTERVALS` `WORKDIR`
-(launchers); `LOCAL_OUT` `REF` `CONSENSUS_SH` (consensus); `CONS_DIR` `CF` `WD` `WIN` `OUT_NAME`
+(launchers); `LOCAL_OUT` `REF` `CONSENSUS_SH` (voting step); `CONS_DIR` `CF` `WD` `WIN` `OUT_NAME`
 (annotate/filter); `BUDGET` `SINCE` `REGION` `FRAC` (cost); `SAREK_SPOT` (see below).
 
 ## Non-obvious gotchas (would cost hours to rediscover)
 
-- **Consensus REF must include ALT/decoy contigs.** Use `refs/Homo_sapiens_assembly38.fasta` (the full
+- **Voting-step REF must include ALT/decoy contigs.** Use `refs/Homo_sapiens_assembly38.fasta` (the full
   GATK.GRCh38), **not** a GENCODE primary-assembly FASTA: the latter fails `bcftools norm` on
   ALT-contig calls. This is why `consensus_from_results.sh` defaults `REF` to that file.
 - **BGE: call coding-only (Twist ~35 Mb), never the broad 165 Mb BGE region.** BGE is deep (~110×) only
@@ -241,7 +241,7 @@ Scripts are env-var driven (override without editing): `SAMPLESHEET` `OUTDIR` `I
   here. It is enabled because `haplotypecaller_filter` is absent from `--skip_tools`.
   **It is still NOT free to skip:** `consensus_from_results.sh` prefers
   `*.haplotypecaller.filtered.vcf.gz`, so skipping it feeds the RAW HaplotypeCaller calls into the
-  consensus instead of the CNN-filtered ones. The GIAB numbers (F1 0.9948 for the July union, 0.9959 for the current consensus) were measured WITH it.
+  vote instead of the CNN-filtered ones. The GIAB numbers (F1 0.9948 for the July union, 0.9959 for the current voted call set) were measured WITH it.
   Skipping it is a legitimate ~4 h saving but changes the science: re-run `validation/` if you do.
   *(An earlier revision of this file blamed the stall on `BCFTOOLS_STATS`; the execution trace shows
   that was wrong.)*
